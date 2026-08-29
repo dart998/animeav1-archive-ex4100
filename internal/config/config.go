@@ -9,13 +9,13 @@ import (
 
 type Config struct {
 	BaseURL            string
+	LibraryURL         string
 	DBPath             string
 	DataDir            string
 	MetadataDir        string
 	VideoDir           string
 	CrawlerEnabled     bool
 	CrawlerInterval    time.Duration
-	CrawlerTargets     []string
 	ProviderOrder      []string
 	ProviderFallback   bool
 	DownloadVideos     bool
@@ -26,13 +26,13 @@ type Config struct {
 func Load() Config {
 	return Config{
 		BaseURL:            env("ANIMEAV1_BASE_URL", "https://animeav1.com"),
+		LibraryURL:         env("ANIMEAV1_LIBRARY_URL", "https://animeav1.com/cuenta/listas"),
 		DBPath:             env("ARCHIVE_DB", "/data/db/archive.sqlite"),
 		DataDir:            env("ARCHIVE_DATA_DIR", "/data"),
 		MetadataDir:        env("ARCHIVE_METADATA_DIR", "/data/metadata"),
 		VideoDir:           env("ARCHIVE_VIDEO_DIR", "/data/videos"),
 		CrawlerEnabled:     boolEnv("CRAWLER_ENABLED", true),
-		CrawlerInterval:    durationEnv("CRAWLER_INTERVAL", 12*time.Hour),
-		CrawlerTargets:     csvEnv("CRAWLER_TARGETS", "mao"),
+		CrawlerInterval:    durationEnv("CRAWLER_INTERVAL", 30*time.Minute),
 		ProviderOrder:      csvEnv("PROVIDER_ORDER", "hls,upnshare,mega,mp4upload"),
 		ProviderFallback:   boolEnv("PROVIDER_FALLBACK", true),
 		DownloadVideos:     boolEnv("DOWNLOAD_VIDEOS", false),
