@@ -18,11 +18,10 @@ services:
       ARCHIVE_SITE_DIR: /data/site
       ARCHIVE_METADATA_DIR: /data/metadata
       ARCHIVE_IMAGES_DIR: /data/images
-      ARCHIVE_VIDEO_DIR: /data/videos
+      ARCHIVE_VIDEO_DIR: /videos
       CRAWLER_ENABLED: ${CRAWLER_ENABLED:-true}
-      CRAWLER_INTERVAL: ${CRAWLER_INTERVAL:-12h}
+      CRAWLER_INTERVAL: ${CRAWLER_INTERVAL:-30m}
       CRAWLER_CONCURRENCY: ${CRAWLER_CONCURRENCY:-1}
-      CRAWLER_TARGETS: ${CRAWLER_TARGETS:-mao}
       PREFERRED_PROVIDER: ${PREFERRED_PROVIDER:-hls}
       PROVIDER_ORDER: ${PROVIDER_ORDER:-hls,upnshare,mega,mp4upload}
       PROVIDER_FALLBACK: ${PROVIDER_FALLBACK:-true}
@@ -32,3 +31,4 @@ services:
 
     volumes:
       - /mnt/HD/HD_a2/Public/animeav1-archive:/data
+      - /mnt/HD/HD_a2/Public/Anime/Series/AnimeAV1-Archive:/videos
