@@ -7,6 +7,7 @@ WORKDIR /src
 COPY go.mod ./
 RUN go mod download
 COPY . .
+RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-arm} GOARM=7 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/animeav1-archive ./cmd/server
 
 FROM debian:bullseye-slim
