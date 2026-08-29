@@ -2,7 +2,7 @@ version: "2.4"
 
 services:
   animeav1-archive:
-    image: ${ARCHIVE_IMAGE:-ghcr.io/dart998/animeav1-archive-ex4100:latest}
+    image: ${ARCHIVE_IMAGE:-ovelayos/animeav1-archive-ex4100:latest}
     container_name: ${CONTAINER_NAME:-animeav1-archive}
     hostname: ${HOSTNAME:-animeav1-archive}
     restart: unless-stopped
@@ -12,12 +12,22 @@ services:
 
     environment:
       TZ: ${TZ:-Europe/Madrid}
+      ANIMEAV1_BASE_URL: ${ANIMEAV1_BASE_URL:-https://animeav1.com}
+      ARCHIVE_DB: /data/db/archive.sqlite
       ARCHIVE_DATA_DIR: /data
-      ANIMEAV1_BASE_URL: https://animeav1.com
-      CRAWLER_ENABLED: ${CRAWLER_ENABLED:-false}
+      ARCHIVE_SITE_DIR: /data/site
+      ARCHIVE_METADATA_DIR: /data/metadata
+      ARCHIVE_IMAGES_DIR: /data/images
+      ARCHIVE_VIDEO_DIR: /data/videos
+      CRAWLER_ENABLED: ${CRAWLER_ENABLED:-true}
       CRAWLER_INTERVAL: ${CRAWLER_INTERVAL:-12h}
       CRAWLER_CONCURRENCY: ${CRAWLER_CONCURRENCY:-1}
+      CRAWLER_TARGETS: ${CRAWLER_TARGETS:-mao}
+      PREFERRED_PROVIDER: ${PREFERRED_PROVIDER:-hls}
+      PROVIDER_ORDER: ${PROVIDER_ORDER:-hls,upnshare,mega,mp4upload}
+      PROVIDER_FALLBACK: ${PROVIDER_FALLBACK:-true}
       DOWNLOAD_VIDEOS: ${DOWNLOAD_VIDEOS:-false}
+      VIDEO_DOWNLOAD_AUTHORIZED: ${VIDEO_DOWNLOAD_AUTHORIZED:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
 
     volumes:
