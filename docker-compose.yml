@@ -1,0 +1,24 @@
+version: "2.4"
+
+services:
+  animeav1-archive:
+    image: ${ARCHIVE_IMAGE:-ghcr.io/dart998/animeav1-archive-ex4100:latest}
+    container_name: ${CONTAINER_NAME:-animeav1-archive}
+    hostname: ${HOSTNAME:-animeav1-archive}
+    restart: unless-stopped
+
+    ports:
+      - "${WEB_PORT:-8090}:8080"
+
+    environment:
+      TZ: ${TZ:-Europe/Madrid}
+      ARCHIVE_DATA_DIR: /data
+      ANIMEAV1_BASE_URL: https://animeav1.com
+      CRAWLER_ENABLED: ${CRAWLER_ENABLED:-false}
+      CRAWLER_INTERVAL: ${CRAWLER_INTERVAL:-12h}
+      CRAWLER_CONCURRENCY: ${CRAWLER_CONCURRENCY:-1}
+      DOWNLOAD_VIDEOS: ${DOWNLOAD_VIDEOS:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+    volumes:
+      - /mnt/HD/HD_a2/Public/animeav1-archive:/data
