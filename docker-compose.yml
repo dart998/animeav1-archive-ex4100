@@ -18,7 +18,7 @@ services:
       ARCHIVE_SITE_DIR: /data/site
       ARCHIVE_METADATA_DIR: /data/metadata
       ARCHIVE_IMAGES_DIR: /data/images
-      ARCHIVE_VIDEO_DIR: /videos
+      ARCHIVE_VIDEO_DIR: /library
       CRAWLER_ENABLED: ${CRAWLER_ENABLED:-true}
       CRAWLER_INTERVAL: ${CRAWLER_INTERVAL:-30m}
       CRAWLER_CONCURRENCY: ${CRAWLER_CONCURRENCY:-1}
@@ -31,4 +31,4 @@ services:
 
     volumes:
       - /mnt/HD/HD_a2/Public/animeav1-archive:/data
-      - /mnt/HD/HD_a2/Public/Anime/Series/AnimeAV1-Archive:/videos
+      - /mnt/HD/HD_a2/Public/Anime/Series:/library
