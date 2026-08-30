@@ -27,7 +27,7 @@ func (s *Server) Handler()http.Handler{
 	m.Handle("/admin-static/",http.StripPrefix("/admin-static/",http.FileServer(http.Dir(s.static))))
 	m.HandleFunc("/healthz",s.health);m.HandleFunc("/api/status",s.status)
 	m.HandleFunc("/admin/settings",s.settings);m.HandleFunc("/admin/rescan",s.rescan);m.HandleFunc("/admin/sync-mal",s.syncMAL);m.HandleFunc("/admin/mirror",s.startMirror);m.HandleFunc("/admin",s.admin)
-	m.Handle("/",http.FileServer(http.Dir(s.siteRoot)))
+	m.Handle("/",s.mirror.Handler())
 	return m
 }
 func (s *Server) health(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","application/json");_,_=w.Write([]byte(`{"status":"ok"}`))}
