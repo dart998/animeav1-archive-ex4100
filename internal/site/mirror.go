@@ -40,14 +40,17 @@ var (
 	importRE     = regexp.MustCompile(`(?i)(?:from\s*|import\s*\(\s*)["']([^"']+)["']`)
 	scriptRE     = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script\s*>`)
 	scriptSrcRE  = regexp.MustCompile(`(?i)\bsrc\s*=\s*["']([^"']+)["']`)
-	eventAttrRE  = regexp.MustCompile(`(?is)\s+on[a-z0-9_-]+\s*=\s*(["'])(.*?)\1`)
-	navAttrRE    = regexp.MustCompile(`(?is)\b(href|action|formaction)\s*=\s*(["'])(.*?)\2`)
+	eventDQRE    = regexp.MustCompile(`(?is)\s+on[a-z0-9_-]+\s*=\s*"([^"]*)"`)
+	eventSQRE    = regexp.MustCompile(`(?is)\s+on[a-z0-9_-]+\s*=\s*'([^']*)'`)
+	navDQRE      = regexp.MustCompile(`(?is)\b(href|action|formaction)\s*=\s*"([^"]*)"`)
+	navSQRE      = regexp.MustCompile(`(?is)\b(href|action|formaction)\s*=\s*'([^']*)'`)
 	baseTagRE    = regexp.MustCompile(`(?is)<base\b[^>]*>`)
 	headOpenRE   = regexp.MustCompile(`(?i)<head\b[^>]*>`)
 	suspiciousJS = regexp.MustCompile(`(?i)(window\.open\s*\(|(?:window\.|document\.|top\.|parent\.)?location\s*(?:=|\.|\[)|location\.(?:assign|replace)\s*\(|javascript\s*:|https?://)`)
 )
 
 const localCSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; frame-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'">`
+const localGuard = `<script>(function(){try{window.open=function(){return null};document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;var h=a.getAttribute('href')||'';if(/^javascript:/i.test(h)){e.preventDefault();e.stopImmediatePropagation();return}try{var u=new URL(h,location.href);if(u.origin!==location.origin){e.preventDefault();e.stopImmediatePropagation()}}catch(_){ }},true)}catch(_){}})();</script>`
 
 func New(baseURL, root string) (*Mirror, error) {
 	u, err := url.Parse(baseURL)
@@ -94,9 +97,12 @@ func (m *Mirror) run(ctx context.Context) {
 
 		if m.isText(ctype, u.Path) {
 			text := string(body)
+
+			// Important: discover from the ORIGINAL response first. Sanitization is only for the published mirror.
 			for _, ref := range discoverRefs(text) {
 				if abs := m.resolve(u, ref); abs != "" { queue = append(queue, abs) }
 			}
+
 			if strings.Contains(strings.ToLower(ctype), "text/html") || strings.EqualFold(filepath.Ext(u.Path), ".html") || u.Path == "" || u.Path == "/" {
 				var n int
 				text, n = m.sanitizeHTML(u, text)
@@ -146,11 +152,8 @@ func discoverRefs(text string) []string {
 
 func (m *Mirror) sanitizeHTML(page *url.URL, text string) (string, int) {
 	removed := 0
-
-	// A local mirror must not inherit a remote <base> that can make relative links leave the NAS.
 	text = baseTagRE.ReplaceAllStringFunc(text, func(s string) string { removed++; return "" })
 
-	// Remove remote scripts and inline scripts that contain popup/redirect patterns.
 	text = scriptRE.ReplaceAllStringFunc(text, func(block string) string {
 		parts := scriptRE.FindStringSubmatch(block)
 		if len(parts) < 3 { return block }
@@ -166,42 +169,50 @@ func (m *Mirror) sanitizeHTML(page *url.URL, text string) (string, int) {
 		return block
 	})
 
-	// Strip click/mouse/touch handlers that try to open windows or navigate away.
-	text = eventAttrRE.ReplaceAllStringFunc(text, func(attr string) string {
-		m := eventAttrRE.FindStringSubmatch(attr)
-		if len(m) > 2 && suspiciousJS.MatchString(m[2]) { removed++; return "" }
+	text = sanitizeEventAttrs(text, eventDQRE, &removed)
+	text = sanitizeEventAttrs(text, eventSQRE, &removed)
+	text = m.sanitizeNavAttrs(page, text, navDQRE, '"', &removed)
+	text = m.sanitizeNavAttrs(page, text, navSQRE, '\'', &removed)
+
+	inject := localCSP + localGuard
+	if headOpenRE.MatchString(text) {
+		text = headOpenRE.ReplaceAllString(text, `${0}`+inject)
+	} else {
+		text = inject + text
+	}
+	return text, removed
+}
+
+func sanitizeEventAttrs(text string, re *regexp.Regexp, removed *int) string {
+	return re.ReplaceAllStringFunc(text, func(attr string) string {
+		m := re.FindStringSubmatch(attr)
+		if len(m) > 1 && suspiciousJS.MatchString(m[1]) { *removed++; return "" }
 		return attr
 	})
+}
 
-	// Neutralize direct third-party links/forms and javascript: links.
-	text = navAttrRE.ReplaceAllStringFunc(text, func(attr string) string {
-		m := navAttrRE.FindStringSubmatch(attr)
-		if len(m) < 4 { return attr }
-		name, quote, raw := m[1], m[2], strings.TrimSpace(m[3])
+func (m *Mirror) sanitizeNavAttrs(page *url.URL, text string, re *regexp.Regexp, quote byte, removed *int) string {
+	return re.ReplaceAllStringFunc(text, func(attr string) string {
+		parts := re.FindStringSubmatch(attr)
+		if len(parts) < 3 { return attr }
+		name, raw := parts[1], strings.TrimSpace(parts[2])
 		lower := strings.ToLower(raw)
+		q := string(quote)
 		if strings.HasPrefix(lower, "javascript:") {
-			removed++
-			if strings.EqualFold(name, "href") { return name + "=" + quote + "#" + quote }
-			return name + "=" + quote + quote
+			*removed++
+			if strings.EqualFold(name, "href") { return name + "=" + q + "#" + q }
+			return name + "=" + q + q
 		}
 		r, err := url.Parse(raw)
 		if err != nil { return attr }
 		u := page.ResolveReference(r)
 		if (u.Scheme == "http" || u.Scheme == "https") && !m.allowedHost(u.Host) {
-			removed++
-			if strings.EqualFold(name, "href") { return name + "=" + quote + "#" + quote }
-			return name + "=" + quote + quote
+			*removed++
+			if strings.EqualFold(name, "href") { return name + "=" + q + "#" + q }
+			return name + "=" + q + q
 		}
 		return attr
 	})
-
-	// Browser-side safety net: no third-party scripts, frames, forms or network calls.
-	if headOpenRE.MatchString(text) {
-		text = headOpenRE.ReplaceAllString(text, `${0}`+localCSP)
-	} else {
-		text = localCSP + text
-	}
-	return text, removed
 }
 
 func (m *Mirror) allowedHost(host string) bool { return host == m.base.Host || host == "cdn.animeav1.com" }
@@ -214,7 +225,7 @@ func (m *Mirror) skipURL(u *url.URL) bool {
 
 func (m *Mirror) resolve(base *url.URL, ref string) string {
 	ref = strings.TrimSpace(ref)
-	if ref == "" || strings.HasPrefix(ref, "#") || strings.HasPrefix(ref, "data:") || strings.HasPrefix(ref, "blob:") || strings.HasPrefix(ref, "javascript:") || strings.HasPrefix(ref, "mailto:") { return "" }
+	if ref == "" || strings.HasPrefix(ref, "#") || strings.HasPrefix(ref, "data:") || strings.HasPrefix(ref, "blob:") || strings.HasPrefix(strings.ToLower(ref), "javascript:") || strings.HasPrefix(ref, "mailto:") { return "" }
 	r, err := url.Parse(ref)
 	if err != nil { return "" }
 	u := base.ResolveReference(r)
