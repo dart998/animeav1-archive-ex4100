@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -77,44 +79,134 @@ func (c *Client) Library(ctx context.Context, cookie string) ([]Item, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 400 { return nil, fmt.Errorf("AnimeAV1 respondió HTTP %d", resp.StatusCode) }
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil { return nil, err }
+	low := strings.ToLower(string(b))
+	if strings.Contains(low, "verifique que es un ser humano") || (strings.Contains(low, "iniciar sesión") && !strings.Contains(string(b), "libraryEntries:")) {
+		return nil, errors.New("cookie caducada o sesión no válida")
+	}
 	return parseLibraryEntries(string(b))
+}
+
+var (
+	reIntField    = func(name string) *regexp.Regexp { return regexp.MustCompile(regexp.QuoteMeta(name) + `\s*:\s*(-?\d+|null)`) }
+	reBoolField   = func(name string) *regexp.Regexp { return regexp.MustCompile(regexp.QuoteMeta(name) + `\s*:\s*(true|false)`) }
+	reStringField = func(name string) *regexp.Regexp { return regexp.MustCompile(regexp.QuoteMeta(name) + `\s*:\s*("(?:\\.|[^"\\])*")`) }
+	reAlias       = regexp.MustCompile(`("(?:\\.|[^"\\])*")\s*:\s*("(?:\\.|[^"\\])*")`)
+)
+
+func jsString(v string) string {
+	if v == "" { return "" }
+	x, err := strconv.Unquote(v)
+	if err != nil { return strings.Trim(v, `"`) }
+	return x
+}
+
+func fieldInt(block, name string) int {
+	m := reIntField(name).FindStringSubmatch(block)
+	if len(m) < 2 || m[1] == "null" { return 0 }
+	n, _ := strconv.Atoi(m[1])
+	return n
+}
+
+func fieldBool(block, name string) bool {
+	m := reBoolField(name).FindStringSubmatch(block)
+	return len(m) > 1 && m[1] == "true"
+}
+
+func fieldID(block, name string) IDString {
+	re := regexp.MustCompile(`(?:"?` + regexp.QuoteMeta(name) + `"?)\s*:\s*(?:"([^"\\]*(?:\\.[^"\\]*)*)"|(-?[0-9]+))`)
+	m := re.FindStringSubmatch(block)
+	if len(m) < 3 { return "" }
+	if m[1] != "" { return IDString(jsString(`"` + m[1] + `"`)) }
+	return IDString(m[2])
+}
+
+func fieldString(block, name string) string {
+	m := reStringField(name).FindStringSubmatch(block)
+	if len(m) < 2 { return "" }
+	return jsString(m[1])
+}
+
+func balanced(src string, start int, open, close byte) (string, error) {
+	if start < 0 || start >= len(src) || src[start] != open { return "", errors.New("inicio de bloque inválido") }
+	depth := 0
+	inString := false
+	escaped := false
+	for i := start; i < len(src); i++ {
+		c := src[i]
+		if inString {
+			if escaped { escaped = false } else if c == '\\' { escaped = true } else if c == '"' { inString = false }
+			continue
+		}
+		if c == '"' { inString = true; continue }
+		if c == open { depth++ }
+		if c == close {
+			depth--
+			if depth == 0 { return src[start:i+1], nil }
+		}
+	}
+	return "", errors.New("bloque SvelteKit incompleto")
+}
+
+func splitTopObjects(array string) []string {
+	out := []string{}
+	depth := 0
+	start := -1
+	inString := false
+	escaped := false
+	for i := 0; i < len(array); i++ {
+		c := array[i]
+		if inString {
+			if escaped { escaped = false } else if c == '\\' { escaped = true } else if c == '"' { inString = false }
+			continue
+		}
+		if c == '"' { inString = true; continue }
+		if c == '{' { if depth == 0 { start = i }; depth++ }
+		if c == '}' {
+			depth--
+			if depth == 0 && start >= 0 { out = append(out, array[start:i+1]); start = -1 }
+		}
+	}
+	return out
+}
+
+func extractObject(block, key string) string {
+	i := strings.Index(block, key+":")
+	if i < 0 { return "" }
+	j := strings.Index(block[i:], "{")
+	if j < 0 { return "" }
+	v, _ := balanced(block, i+j, '{', '}')
+	return v
 }
 
 func parseLibraryEntries(body string) ([]Item, error) {
 	i := strings.Index(body, "libraryEntries:")
 	if i < 0 { return nil, errors.New("AnimeAV1 no contiene libraryEntries; cookie caducada o formato cambiado") }
-	startRel := strings.Index(body[i:], "[")
-	if startRel < 0 { return nil, errors.New("libraryEntries sin array") }
-	start := i + startRel
-	arr, err := balanced(body, start, '[', ']')
+	j := strings.Index(body[i:], "[")
+	if j < 0 { return nil, errors.New("libraryEntries sin array") }
+	arr, err := balanced(body, i+j, '[', ']')
 	if err != nil { return nil, err }
-	var items []Item
-	if err := json.Unmarshal([]byte(arr), &items); err != nil { return nil, fmt.Errorf("libraryEntries JSON: %w", err) }
-	filtered := items[:0]
-	for _, it := range items { if strings.TrimSpace(it.Title) != "" { filtered = append(filtered, it) } }
-	if len(filtered) == 0 { return nil, errors.New("libraryEntries encontrado pero vacío") }
-	return filtered, nil
-}
-
-func balanced(s string, start int, open, close byte) (string, error) {
-	if start < 0 || start >= len(s) || s[start] != open { return "", errors.New("inicio de bloque inválido") }
-	depth := 0
-	inString := false
-	escaped := false
-	for i := start; i < len(s); i++ {
-		ch := s[i]
-		if inString {
-			if escaped { escaped = false; continue }
-			if ch == '\\' { escaped = true; continue }
-			if ch == '"' { inString = false }
-			continue
+	objects := splitTopObjects(arr)
+	items := make([]Item, 0, len(objects))
+	for _, obj := range objects {
+		media := extractObject(obj, "media")
+		if media == "" { continue }
+		it := Item{
+			MediaID: fieldID(obj, "mediaId"),
+			Status: fieldInt(obj, "status"),
+			Seen: fieldInt(obj, "episode"),
+			Score: fieldInt(obj, "score"),
+			Favorite: fieldBool(obj, "favorite"),
+			Title: fieldString(media, "title"),
+			Total: fieldInt(media, "episodesCount"),
+			Slug: fieldString(media, "slug"),
+			Aliases: map[string]string{},
 		}
-		if ch == '"' { inString = true; continue }
-		if ch == open { depth++ }
-		if ch == close {
-			depth--
-			if depth == 0 { return s[start:i+1], nil }
+		aka := extractObject(media, "aka")
+		for _, m := range reAlias.FindAllStringSubmatch(aka, -1) {
+			if len(m) == 3 { it.Aliases[jsString(m[1])] = jsString(m[2]) }
 		}
+		if strings.TrimSpace(it.Title) != "" { items = append(items, it) }
 	}
-	return "", errors.New("bloque libraryEntries incompleto")
+	if len(items) == 0 { return nil, errors.New("libraryEntries encontrado pero no se pudo leer ninguna entrada") }
+	return items, nil
 }
