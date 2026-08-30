@@ -24,7 +24,7 @@ func New(db *database.DB,c *crawler.Service,mirror *sitemirror.Mirror,webDir,lib
 }
 func (s *Server) Handler()http.Handler{
 	m:=http.NewServeMux()
-	m.Handle("/static/",http.StripPrefix("/static/",http.FileServer(http.Dir(s.static))))
+	m.Handle("/admin-static/",http.StripPrefix("/admin-static/",http.FileServer(http.Dir(s.static))))
 	m.HandleFunc("/healthz",s.health);m.HandleFunc("/api/status",s.status)
 	m.HandleFunc("/admin/settings",s.settings);m.HandleFunc("/admin/rescan",s.rescan);m.HandleFunc("/admin/sync-mal",s.syncMAL);m.HandleFunc("/admin/mirror",s.startMirror);m.HandleFunc("/admin",s.admin)
 	m.Handle("/",http.FileServer(http.Dir(s.siteRoot)))
