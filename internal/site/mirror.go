@@ -69,10 +69,6 @@ func (m *Mirror) run(ctx context.Context){
 				ref,err:=url.Parse(match[1]);if err!=nil{continue}
 				abs:=u.ResolveReference(ref);if abs.Host==m.base.Host && (abs.Scheme=="http"||abs.Scheme=="https"){queue=append(queue,abs.String())}
 			}
-			text=strings.ReplaceAll(text,`href="/`,`href="/site/`)
-			text=strings.ReplaceAll(text,`src="/`,`src="/site/`)
-			text=strings.ReplaceAll(text,`href='/`,`href='/site/`)
-			text=strings.ReplaceAll(text,`src='/`,`src='/site/`)
 			body=[]byte(text)
 		}
 		if err=m.save(u,body,ctype);err!=nil{m.mu.Lock();m.state.Errors++;m.state.LastError=err.Error();m.mu.Unlock();continue}
