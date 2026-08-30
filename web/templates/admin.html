@@ -90,7 +90,7 @@
 <script>
 (function(){
   const q=id=>document.getElementById(id);
-  let errorLog={{if .Mirror.ErrorLog}}[{{range $i,$e:=.Mirror.ErrorLog}}{{if $i}},{{end}}{"time":{{printf "%q" $e.Time}},"message":{{printf "%q" $e.Message}}}{{end}}]{{else}}[]{{end}};
+  let errorLog=[];
   const modal=q('logs-modal');
   function renderErrors(){
     q('logs-summary').textContent=errorLog.length?('Mostrando '+errorLog.length+' errores recientes de esta ejecución.'):'No hay errores registrados en esta ejecución.';
