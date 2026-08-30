@@ -27,11 +27,12 @@ type State struct {
 }
 
 type Mirror struct {
-	base   *url.URL
-	root   string
-	client *http.Client
-	mu     sync.RWMutex
-	state  State
+	base          *url.URL
+	root          string
+	client        *http.Client
+	mu            sync.RWMutex
+	state         State
+	sessionCookie string
 }
 
 var (
@@ -62,6 +63,18 @@ func New(baseURL, root string) (*Mirror, error) {
 
 func (m *Mirror) Snapshot() State { m.mu.RLock(); defer m.mu.RUnlock(); return m.state }
 
+func (m *Mirror) SetSessionCookie(cookie string) {
+	m.mu.Lock()
+	m.sessionCookie = strings.TrimSpace(cookie)
+	m.mu.Unlock()
+}
+
+func (m *Mirror) HasSessionCookie() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.sessionCookie != ""
+}
+
 func (m *Mirror) Start(ctx context.Context) bool {
 	m.mu.Lock()
 	if m.state.Running { m.mu.Unlock(); return false }
@@ -89,7 +102,6 @@ func (m *Mirror) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	body, cleaned := m.prepareForPublish(upstream, body, ctype)
 	if cleaned > 0 { m.mu.Lock(); m.state.Sanitized += cleaned; m.mu.Unlock() }
 
-	// Cache stable resources/pages. Query-dependent API responses are served live to preserve behaviour.
 	if r.URL.RawQuery == "" && !strings.Contains(strings.ToLower(ctype), "application/json") {
 		_ = m.save(m.root, upstream, body, ctype)
 	}
@@ -277,6 +289,14 @@ func (m *Mirror) fetch(ctx context.Context, u string) ([]byte, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil); if err != nil { return nil, "", err }
 	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 Chrome/124 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/javascript,text/css,application/json,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8")
+	m.mu.RLock()
+	cookie := m.sessionCookie
+	m.mu.RUnlock()
+	if cookie != "" {
+		if parsed, e := url.Parse(u); e == nil && strings.EqualFold(parsed.Host, m.base.Host) {
+			req.Header.Set("Cookie", cookie)
+		}
+	}
 	resp, err := m.client.Do(req); if err != nil { return nil, "", err }; defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 400 { return nil, "", fmt.Errorf("GET %s: %s", u, resp.Status) }
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20)); if err != nil { return nil, "", err }
