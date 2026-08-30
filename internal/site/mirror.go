@@ -20,6 +20,7 @@ type State struct {
 	Finished  string
 	Fetched   int
 	Errors    int
+	Sanitized int
 	Current   string
 	LastError string
 }
@@ -33,11 +34,20 @@ type Mirror struct {
 }
 
 var (
-	attrRE   = regexp.MustCompile(`(?i)(?:href|src|poster|action)=["']([^"'#]+)["']`)
-	srcsetRE = regexp.MustCompile(`(?i)srcset=["']([^"']+)["']`)
-	cssURLRE = regexp.MustCompile(`(?i)url\(\s*["']?([^"')]+)`)
-	importRE = regexp.MustCompile(`(?i)(?:from\s*|import\s*\(\s*)["']([^"']+)["']`)
+	attrRE       = regexp.MustCompile(`(?i)(?:href|src|poster|action)=["']([^"'#]+)["']`)
+	srcsetRE     = regexp.MustCompile(`(?i)srcset=["']([^"']+)["']`)
+	cssURLRE     = regexp.MustCompile(`(?i)url\(\s*["']?([^"')]+)`)
+	importRE     = regexp.MustCompile(`(?i)(?:from\s*|import\s*\(\s*)["']([^"']+)["']`)
+	scriptRE     = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script\s*>`)
+	scriptSrcRE  = regexp.MustCompile(`(?i)\bsrc\s*=\s*["']([^"']+)["']`)
+	eventAttrRE  = regexp.MustCompile(`(?is)\s+on[a-z0-9_-]+\s*=\s*(["'])(.*?)\1`)
+	navAttrRE    = regexp.MustCompile(`(?is)\b(href|action|formaction)\s*=\s*(["'])(.*?)\2`)
+	baseTagRE    = regexp.MustCompile(`(?is)<base\b[^>]*>`)
+	headOpenRE   = regexp.MustCompile(`(?i)<head\b[^>]*>`)
+	suspiciousJS = regexp.MustCompile(`(?i)(window\.open\s*\(|(?:window\.|document\.|top\.|parent\.)?location\s*(?:=|\.|\[)|location\.(?:assign|replace)\s*\(|javascript\s*:|https?://)`)
 )
+
+const localCSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; frame-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'">`
 
 func New(baseURL, root string) (*Mirror, error) {
 	u, err := url.Parse(baseURL)
@@ -87,6 +97,11 @@ func (m *Mirror) run(ctx context.Context) {
 			for _, ref := range discoverRefs(text) {
 				if abs := m.resolve(u, ref); abs != "" { queue = append(queue, abs) }
 			}
+			if strings.Contains(strings.ToLower(ctype), "text/html") || strings.EqualFold(filepath.Ext(u.Path), ".html") || u.Path == "" || u.Path == "/" {
+				var n int
+				text, n = m.sanitizeHTML(u, text)
+				if n > 0 { m.mu.Lock(); m.state.Sanitized += n; m.mu.Unlock() }
+			}
 			text = m.rewrite(text)
 			body = []byte(text)
 		}
@@ -127,6 +142,66 @@ func discoverRefs(text string) []string {
 		}
 	}
 	return out
+}
+
+func (m *Mirror) sanitizeHTML(page *url.URL, text string) (string, int) {
+	removed := 0
+
+	// A local mirror must not inherit a remote <base> that can make relative links leave the NAS.
+	text = baseTagRE.ReplaceAllStringFunc(text, func(s string) string { removed++; return "" })
+
+	// Remove remote scripts and inline scripts that contain popup/redirect patterns.
+	text = scriptRE.ReplaceAllStringFunc(text, func(block string) string {
+		parts := scriptRE.FindStringSubmatch(block)
+		if len(parts) < 3 { return block }
+		attrs, body := parts[1], parts[2]
+		if sm := scriptSrcRE.FindStringSubmatch(attrs); len(sm) > 1 {
+			raw := strings.TrimSpace(sm[1])
+			r, err := url.Parse(raw)
+			if err != nil { removed++; return "" }
+			u := page.ResolveReference(r)
+			if (u.Scheme == "http" || u.Scheme == "https") && !m.allowedHost(u.Host) { removed++; return "" }
+		}
+		if suspiciousJS.MatchString(body) { removed++; return "" }
+		return block
+	})
+
+	// Strip click/mouse/touch handlers that try to open windows or navigate away.
+	text = eventAttrRE.ReplaceAllStringFunc(text, func(attr string) string {
+		m := eventAttrRE.FindStringSubmatch(attr)
+		if len(m) > 2 && suspiciousJS.MatchString(m[2]) { removed++; return "" }
+		return attr
+	})
+
+	// Neutralize direct third-party links/forms and javascript: links.
+	text = navAttrRE.ReplaceAllStringFunc(text, func(attr string) string {
+		m := navAttrRE.FindStringSubmatch(attr)
+		if len(m) < 4 { return attr }
+		name, quote, raw := m[1], m[2], strings.TrimSpace(m[3])
+		lower := strings.ToLower(raw)
+		if strings.HasPrefix(lower, "javascript:") {
+			removed++
+			if strings.EqualFold(name, "href") { return name + "=" + quote + "#" + quote }
+			return name + "=" + quote + quote
+		}
+		r, err := url.Parse(raw)
+		if err != nil { return attr }
+		u := page.ResolveReference(r)
+		if (u.Scheme == "http" || u.Scheme == "https") && !m.allowedHost(u.Host) {
+			removed++
+			if strings.EqualFold(name, "href") { return name + "=" + quote + "#" + quote }
+			return name + "=" + quote + quote
+		}
+		return attr
+	})
+
+	// Browser-side safety net: no third-party scripts, frames, forms or network calls.
+	if headOpenRE.MatchString(text) {
+		text = headOpenRE.ReplaceAllString(text, `${0}`+localCSP)
+	} else {
+		text = localCSP + text
+	}
+	return text, removed
 }
 
 func (m *Mirror) allowedHost(host string) bool { return host == m.base.Host || host == "cdn.animeav1.com" }
