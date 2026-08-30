@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - docker-compose.yml
   workflow_dispatch:
 
 concurrency:
@@ -11,7 +13,11 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
+
+env:
+  APP_VERSION: 0.5.2
+  IMAGE_NAME: ovelayos/animeav1-archive-ex4100
 
 jobs:
   docker:
@@ -20,6 +26,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -41,8 +49,40 @@ jobs:
           platforms: linux/arm/v7
           push: true
           build-args: |
-            VERSION=0.5.2
+            VERSION=${{ env.APP_VERSION }}
             COMMIT_SHA=${{ github.sha }}
-          tags: ovelayos/animeav1-archive-ex4100:latest
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.APP_VERSION }}
+            ${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Update compose image tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -Ei "s#(image: \\${ARCHIVE_IMAGE:-${IMAGE_NAME}:)[^}]+(})#\\1${APP_VERSION}\\2#" docker-compose.yml
+
+          if git diff --quiet -- docker-compose.yml; then
+            echo "docker-compose.yml already points to ${APP_VERSION}"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docker-compose.yml
+          git commit -m "Deploy ${APP_VERSION}"
+          git push origin HEAD:main
+
+      - name: Redeploy Portainer stack
+        shell: bash
+        env:
+          PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          test -n "${PORTAINER_WEBHOOK_URL}"
+          curl --fail --silent --show-error \
+            --request POST \
+            --retry 3 \
+            --retry-delay 5 \
+            "${PORTAINER_WEBHOOK_URL}"
