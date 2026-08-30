@@ -29,8 +29,21 @@ type Service struct { cfg config.Config; db *database.DB; client *http.Client; S
 type episodeMeta struct { Anime string `json:"anime"`; Slug string `json:"slug"`; Episode int `json:"episode"`; URL string `json:"url"`; SelectedProvider string `json:"selected_provider"`; SelectedURL string `json:"selected_url,omitempty"`; Sources []database.Source `json:"sources"`; ArchivedPath string `json:"archived_path,omitempty"`; SHA256 string `json:"sha256,omitempty"` }
 
 var h1RE=regexp.MustCompile(`(?is)<h1[^>]*>\s*([^<]+)`)
-func New(cfg config.Config, db *database.DB)*Service{return &Service{cfg:cfg,db:db,client:&http.Client{Timeout:25*time.Second},State:&State{LastStatus:"waiting_for_mal"}}}
-func (s *Service) RunAll(ctx context.Context) error { s.State.mu.Lock(); if s.State.Running {s.State.mu.Unlock();return fmt.Errorf("crawl already running")}; s.State.Running=true;s.State.LastStart=time.Now().Format(time.RFC3339);s.State.mu.Unlock(); s.State.mu.Lock();s.State.Running=false;s.State.LastFinish=time.Now().Format(time.RFC3339);s.State.LastStatus="waiting_for_mal";s.State.LastError="Configura el usuario publico de MyAnimeList en /admin";s.State.mu.Unlock();return nil }
+func New(cfg config.Config, db *database.DB)*Service{ s:=&Service{cfg:cfg,db:db,client:&http.Client{Timeout:25*time.Second},State:&State{}}; s.RefreshConfigState(); return s }
+func (s *Service) RefreshConfigState(){
+	username:=strings.TrimSpace(s.db.GetSetting("mal_username"))
+	s.State.mu.Lock();defer s.State.mu.Unlock()
+	if username==""{s.State.LastStatus="waiting_for_mal";s.State.LastError="Configura el usuario publico de MyAnimeList en /admin";return}
+	s.State.LastStatus="mal_configured"
+	s.State.LastError=""
+}
+func (s *Service) RunAll(ctx context.Context) error {
+	s.State.mu.Lock(); if s.State.Running {s.State.mu.Unlock();return fmt.Errorf("crawl already running")}; s.State.Running=true;s.State.LastStart=time.Now().Format(time.RFC3339);s.State.mu.Unlock()
+	username:=strings.TrimSpace(s.db.GetSetting("mal_username"))
+	s.State.mu.Lock();defer s.State.mu.Unlock();s.State.Running=false;s.State.LastFinish=time.Now().Format(time.RFC3339)
+	if username==""{s.State.LastStatus="waiting_for_mal";s.State.LastError="Configura el usuario publico de MyAnimeList en /admin";return nil}
+	s.State.LastStatus="mal_configured";s.State.LastError="";return nil
+}
 func (s *Service) RunTarget(ctx context.Context,slug string) error {
 	runID,_:=s.db.BeginRun(slug); status:="ok"; msg:=""; defer func(){s.db.FinishRun(runID,status,msg)}()
 	animeURL:=strings.TrimRight(s.cfg.BaseURL,"/")+"/media/"+slug; log.Printf("[CRAWL] %s",slug); body,err:=s.fetch(ctx,animeURL); if err!=nil{status="error";msg=err.Error();return err}
