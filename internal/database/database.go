@@ -21,6 +21,18 @@ type LibraryItem struct {
 	LastScan string
 }
 
+type MALWatchingItem struct {
+	MALID int
+	Title string
+	Watched int
+	Total int
+	Status int
+	LocalName string
+	LocalPath string
+	MatchScore int
+	LastSeen string
+}
+
 func Open(path string) (*DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { return nil, err }
 	db, err := sql.Open("sqlite", path); if err != nil { return nil, err }
@@ -36,6 +48,17 @@ CREATE TABLE IF NOT EXISTS downloads (id INTEGER PRIMARY KEY, episode_id INTEGER
 CREATE TABLE IF NOT EXISTS crawl_runs (id INTEGER PRIMARY KEY, started_at TEXT NOT NULL, finished_at TEXT, status TEXT NOT NULL, target TEXT, error TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS library_items (name TEXT PRIMARY KEY, path TEXT NOT NULL, files INTEGER NOT NULL DEFAULT 0, bytes INTEGER NOT NULL DEFAULT 0, last_scan TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS mal_watching (
+    mal_id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    watched INTEGER NOT NULL DEFAULT 0,
+    total INTEGER NOT NULL DEFAULT 0,
+    status INTEGER NOT NULL DEFAULT 1,
+    local_name TEXT NOT NULL DEFAULT '',
+    local_path TEXT NOT NULL DEFAULT '',
+    match_score INTEGER NOT NULL DEFAULT 0,
+    last_seen TEXT NOT NULL
+);
 `)
 	return err
 }
@@ -51,3 +74,5 @@ func (d *DB) SetSetting(key,value string) error { _,e:=d.Exec(`INSERT INTO setti
 func (d *DB) GetSetting(key string) string { var v string; _=d.QueryRow(`SELECT value FROM settings WHERE key=?`,key).Scan(&v); return v }
 func (d *DB) ReplaceLibrary(items []LibraryItem) error { tx,e:=d.Begin();if e!=nil{return e};defer tx.Rollback();if _,e=tx.Exec(`DELETE FROM library_items`);e!=nil{return e};for _,x:=range items{if _,e=tx.Exec(`INSERT INTO library_items(name,path,files,bytes,last_scan) VALUES(?,?,?,?,?)`,x.Name,x.Path,x.Files,x.Bytes,x.LastScan);e!=nil{return e}};return tx.Commit() }
 func (d *DB) Library() ([]LibraryItem,error){rows,e:=d.Query(`SELECT name,path,files,bytes,last_scan FROM library_items ORDER BY name COLLATE NOCASE`);if e!=nil{return nil,e};defer rows.Close();var out []LibraryItem;for rows.Next(){var x LibraryItem;if e=rows.Scan(&x.Name,&x.Path,&x.Files,&x.Bytes,&x.LastScan);e!=nil{return nil,e};out=append(out,x)};return out,rows.Err()}
+func (d *DB) ReplaceMALWatching(items []MALWatchingItem) error { tx,e:=d.Begin();if e!=nil{return e};defer tx.Rollback();if _,e=tx.Exec(`DELETE FROM mal_watching`);e!=nil{return e};for _,x:=range items{if _,e=tx.Exec(`INSERT INTO mal_watching(mal_id,title,watched,total,status,local_name,local_path,match_score,last_seen) VALUES(?,?,?,?,?,?,?,?,?)`,x.MALID,x.Title,x.Watched,x.Total,x.Status,x.LocalName,x.LocalPath,x.MatchScore,x.LastSeen);e!=nil{return e}};return tx.Commit() }
+func (d *DB) MALWatching() ([]MALWatchingItem,error){rows,e:=d.Query(`SELECT mal_id,title,watched,total,status,local_name,local_path,match_score,last_seen FROM mal_watching ORDER BY title COLLATE NOCASE`);if e!=nil{return nil,e};defer rows.Close();var out []MALWatchingItem;for rows.Next(){var x MALWatchingItem;if e=rows.Scan(&x.MALID,&x.Title,&x.Watched,&x.Total,&x.Status,&x.LocalName,&x.LocalPath,&x.MatchScore,&x.LastSeen);e!=nil{return nil,e};out=append(out,x)};return out,rows.Err()}
