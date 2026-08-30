@@ -2,7 +2,7 @@ version: "2.4"
 
 services:
   animeav1-archive:
-    image: ${ARCHIVE_IMAGE:-ovelayos/animeav1-archive-ex4100:0.5.2}
+    image: ${ARCHIVE_IMAGE:-ovelayos/animeav1-archive-ex4100:0.6.0}
     container_name: ${CONTAINER_NAME:-animeav1-archive}
     hostname: ${HOSTNAME:-animeav1-archive}
     restart: unless-stopped
