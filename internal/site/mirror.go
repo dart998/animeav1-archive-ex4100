@@ -98,7 +98,7 @@ func (m *Mirror) run(ctx context.Context) {
 		if m.isText(ctype, u.Path) {
 			text := string(body)
 
-			// Important: discover from the ORIGINAL response first. Sanitization is only for the published mirror.
+			// Descubrir siempre desde la respuesta ORIGINAL. La sanitizacion solo afecta al mirror publicado.
 			for _, ref := range discoverRefs(text) {
 				if abs := m.resolve(u, ref); abs != "" { queue = append(queue, abs) }
 			}
@@ -186,7 +186,7 @@ func (m *Mirror) sanitizeHTML(page *url.URL, text string) (string, int) {
 func sanitizeEventAttrs(text string, re *regexp.Regexp, removed *int) string {
 	return re.ReplaceAllStringFunc(text, func(attr string) string {
 		m := re.FindStringSubmatch(attr)
-		if len(m) > 1 && suspiciousJS.MatchString(m[1]) { *removed++; return "" }
+		if len(m) > 1 && suspiciousJS.MatchString(m[1]) { (*removed)++; return "" }
 		return attr
 	})
 }
@@ -199,7 +199,7 @@ func (m *Mirror) sanitizeNavAttrs(page *url.URL, text string, re *regexp.Regexp,
 		lower := strings.ToLower(raw)
 		q := string(quote)
 		if strings.HasPrefix(lower, "javascript:") {
-			*removed++
+			(*removed)++
 			if strings.EqualFold(name, "href") { return name + "=" + q + "#" + q }
 			return name + "=" + q + q
 		}
@@ -207,7 +207,7 @@ func (m *Mirror) sanitizeNavAttrs(page *url.URL, text string, re *regexp.Regexp,
 		if err != nil { return attr }
 		u := page.ResolveReference(r)
 		if (u.Scheme == "http" || u.Scheme == "https") && !m.allowedHost(u.Host) {
-			*removed++
+			(*removed)++
 			if strings.EqualFold(name, "href") { return name + "=" + q + "#" + q }
 			return name + "=" + q + q
 		}
