@@ -6,6 +6,7 @@
 <title>Administración · AnimeAV1 Archive</title>
 <link rel="icon" type="image/svg+xml" href="/admin-static/favicon.svg">
 <link rel="stylesheet" href="/admin-static/style.css">
+<link rel="stylesheet" href="/admin-static/table-sort.css">
 </head>
 <body>
 <div class="topbar">
@@ -37,11 +38,14 @@
     <h2>Biblioteca AV1</h2>
     <div class="stat-grid">
       <div class="stat"><div class="muted">Viendo</div><strong>{{.AV1Watching}}</strong></div>
+      <div class="stat"><div class="muted">Planeadas</div><strong>{{.AV1Planned}}</strong></div>
       <div class="stat"><div class="muted">Completadas</div><strong>{{.AV1Completed}}</strong></div>
+      <div class="stat"><div class="muted">En pausa</div><strong>{{.AV1OnHold}}</strong></div>
+      <div class="stat"><div class="muted">Abandonadas</div><strong>{{.AV1Dropped}}</strong></div>
       <div class="stat"><div class="muted">Con contenido local</div><strong>{{.AV1Local}}</strong></div>
       <div class="stat"><div class="muted">Sin coincidencia local</div><strong>{{.AV1Unmatched}}</strong></div>
     </div>
-    <p class="form-help">AnimeAV1 define el alcance. Solo las series en <strong>Viendo</strong> o <strong>Completado</strong> forman parte de la biblioteca gestionada.</p>
+    <p class="form-help">Se muestran las cinco categorías de AnimeAV1. Solo <strong>Viendo</strong> y <strong>Completado</strong> se rastrean automáticamente.</p>
   </div>
 </div>
 
@@ -62,21 +66,22 @@
 </div>
 
 <section>
-  <div class="section-head"><div><h2>Biblioteca gestionada</h2><div class="muted">Series de tus listas AnimeAV1 en estado Viendo o Completado. La coincidencia local solo reutiliza archivos; no decide el alcance.</div></div></div>
+  <div class="section-head"><div><h2>Biblioteca AnimeAV1</h2><div class="muted">Todas tus categorías. El rastreo automático procesa lotes pequeños de las series gestionadas.</div></div></div>
   <div class="table-wrap"><table>
-    <thead><tr><th>Serie AnimeAV1</th><th>Estado</th><th>Progreso AV1</th><th>ID AV1</th><th>Contenido local</th><th>Coincidencia</th></tr></thead>
-    <tbody>
+    <thead><tr><th><button type="button" class="table-sort" data-sort="title">Serie AnimeAV1 <span aria-hidden="true">↕</span></button></th><th><button type="button" class="table-sort" data-sort="status">Estado <span aria-hidden="true">↕</span></button></th><th>Alcance</th><th>Progreso AV1</th><th>Episodios detectados</th><th>Contenido local</th><th>Coincidencia</th></tr></thead>
+    <tbody id="av1-series-body">
     {{range .AV1Series}}
-      <tr>
+      <tr data-title="{{.Title}}" data-status="{{.StatusOrder}}">
         <td>{{if .URL}}<strong><a href="{{.URL}}">{{.Title}}</a></strong>{{else}}<strong>{{.Title}}</strong>{{end}}{{if .Slug}}<small class="meta-block">{{.Slug}}</small>{{end}}</td>
         <td>{{.Status}}</td>
+        <td>{{if .Managed}}<span class="ok">Gestionada</span>{{else}}Solo visible{{end}}</td>
         <td>{{.Seen}} / {{.Total}}</td>
-        <td><code>{{.MediaID}}</code></td>
+        <td>{{.Discovered}}{{if .Total}} / {{.Total}}{{end}}<small class="meta-block">ID AV1: {{.MediaID}}</small></td>
         <td>{{if .LocalName}}<strong class="ok">{{.LocalName}}</strong><small class="meta-block">{{.LocalFiles}} vídeos · {{bytes .LocalBytes}}</small>{{if .RenameSuggestion}}<small class="meta-block warn">Sugerencia: renombrar a «{{.RenameSuggestion}}»</small>{{end}}{{else}}<span class="warn">No detectado</span>{{end}}</td>
         <td>{{if .MatchType}}<span class="ok">{{.MatchType}}</span>{{else}}—{{end}}</td>
       </tr>
     {{else}}
-      <tr><td colspan="6">Pulsa «Actualizar listas AV1». Si no aparecen entradas, revisa la cookie de sesión.</td></tr>
+      <tr><td colspan="7">Pulsa «Actualizar listas AV1». Si no aparecen entradas, revisa la cookie de sesión.</td></tr>
     {{end}}
     </tbody>
   </table></div>
@@ -114,6 +119,9 @@
   const q=id=>document.getElementById(id); let errorLog=[]; const modal=q('logs-modal');
   function renderErrors(){q('logs-summary').textContent=errorLog.length?('Mostrando '+errorLog.length+' errores recientes.'):'No hay errores registrados.';q('logs-list').innerHTML='';errorLog.slice().reverse().forEach(e=>{const row=document.createElement('div');row.className='log-entry';const t=document.createElement('div');t.className='muted log-time';t.textContent=e.time||'';const m=document.createElement('code');m.textContent=e.message||'';row.append(t,m);q('logs-list').append(row)})}
   function openLogs(){renderErrors();modal.hidden=false} function closeLogs(){modal.hidden=true}
+  const seriesBody=q('av1-series-body');let sortDirection={title:1,status:1};
+  function sortSeries(key){if(!seriesBody)return;const direction=sortDirection[key];sortDirection[key]*=-1;const rows=Array.from(seriesBody.querySelectorAll('tr[data-title]'));rows.sort((a,b)=>{const title=a.dataset.title.localeCompare(b.dataset.title,'es',{sensitivity:'base',numeric:true});if(key==='title')return title*direction;const status=Number(a.dataset.status)-Number(b.dataset.status);return (status||title)*direction});rows.forEach(row=>seriesBody.appendChild(row));document.querySelectorAll('.table-sort').forEach(button=>{const mark=button.querySelector('span');if(mark)mark.textContent=button.dataset.sort===key?(direction===1?'↑':'↓'):'↕'})}
+  document.querySelectorAll('.table-sort').forEach(button=>button.addEventListener('click',()=>sortSeries(button.dataset.sort)));
   q('mirror-logs-button').addEventListener('click',openLogs);q('mirror-errors-card').addEventListener('click',openLogs);q('mirror-errors-card').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openLogs()}});q('logs-close').addEventListener('click',closeLogs);modal.addEventListener('click',e=>{if(e.target===modal)closeLogs()});
   async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)return;const x=await r.json(),m=x.mirror||{};q('mirror-status').textContent=m.running?'Descargando':'En espera';q('mirror-fetched').textContent=m.fetched??0;q('mirror-sanitized').textContent=m.sanitized??0;q('mirror-errors').textContent=m.errors??0;q('mirror-finished').textContent=m.finished||'';q('mirror-current').textContent=m.current||'';errorLog=Array.isArray(m.error_log)?m.error_log:[];if(!modal.hidden)renderErrors()}catch(_){}}
   setInterval(refresh,1000);refresh();

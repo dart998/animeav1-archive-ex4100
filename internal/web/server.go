@@ -38,6 +38,7 @@ type avSeries struct {
 	Slug string
 	URL string
 	Status string
+	StatusOrder int
 	Seen int
 	Total int
 	LocalName string
@@ -45,6 +46,8 @@ type avSeries struct {
 	LocalBytes int64
 	MatchType string
 	RenameSuggestion string
+	Managed bool
+	Discovered int
 }
 
 type adminData struct {
@@ -58,6 +61,9 @@ type adminData struct {
 	AV1SyncError string
 	AV1Watching int
 	AV1Completed int
+	AV1Planned int
+	AV1OnHold int
+	AV1Dropped int
 	AV1Local int
 	AV1Unmatched int
 	AV1Series []avSeries
@@ -88,19 +94,19 @@ func (s *Server) Handler()http.Handler{
 }
 
 func (s *Server) health(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","application/json");_,_=w.Write([]byte(`{"status":"ok"}`))}
-func (s *Server) status(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","application/json");_=json.NewEncoder(w).Encode(map[string]any{"version":s.version,"commit":s.commitSHA,"mirror":s.mirror.Snapshot(),"animeav1_session_configured":s.mirror.HasSessionCookie(),"animeav1_library_updated":s.db.GetSetting("animeav1_library_updated")})}
+func (s *Server) status(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","application/json");_=json.NewEncoder(w).Encode(map[string]any{"version":s.version,"commit":s.commitSHA,"crawler":s.crawl.State.Snapshot(),"mirror":s.mirror.Snapshot(),"animeav1_session_configured":s.mirror.HasSessionCookie(),"animeav1_library_updated":s.db.GetSetting("animeav1_library_updated")})}
 
 func (s *Server) admin(w http.ResponseWriter,r *http.Request){
 	if r.URL.Path!="/admin"{http.NotFound(w,r);return}
 	items,e:=s.db.Library();if e!=nil{http.Error(w,e.Error(),500);return}
-	series,watching,completed,local,unmatched:=s.avSeries(items)
+	series,counts,local,unmatched:=s.avSeries(items)
 	short:=s.commitSHA;if len(short)>7{short=short[:7]}
 	commitURL:="";if s.commitSHA!=""&&s.commitSHA!="unknown"{commitURL="https://github.com/dart998/animeav1-archive-ex4100/commit/"+s.commitSHA}
 	d:=adminData{
 		Version:s.version,CommitSHA:s.commitSHA,CommitShort:short,CommitURL:commitURL,
 		Mirror:s.mirror.Snapshot(),AnimeAV1CookieConfigured:s.mirror.HasSessionCookie(),
 		AV1SyncAt:s.db.GetSetting("animeav1_library_updated"),AV1SyncError:s.db.GetSetting("animeav1_library_error"),
-		AV1Watching:watching,AV1Completed:completed,AV1Local:local,AV1Unmatched:unmatched,AV1Series:series,
+		AV1Watching:counts[0],AV1Planned:counts[1],AV1Completed:counts[2],AV1OnHold:counts[3],AV1Dropped:counts[4],AV1Local:local,AV1Unmatched:unmatched,AV1Series:series,
 		Library:items,MALUsername:s.db.GetSetting("mal_username"),
 	}
 	if e=s.tmpl.ExecuteTemplate(w,"admin.html",d);e!=nil{http.Error(w,e.Error(),500)}
@@ -135,21 +141,21 @@ func (s *Server) syncAV1(w http.ResponseWriter,r *http.Request){
 	if err=s.db.SetSetting("animeav1_library_json",string(b));err!=nil{http.Error(w,err.Error(),500);return}
 	_ = s.db.SetSetting("animeav1_library_updated",time.Now().Format(time.RFC3339))
 	_ = s.db.SetSetting("animeav1_library_error","")
+	s.crawl.RefreshConfigState()
 	http.Redirect(w,r,"/admin",http.StatusSeeOther)
 }
 
 func (s *Server) rescan(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};items,e:=libraryindex.Scan(s.libraryRoot);if e!=nil{http.Error(w,e.Error(),500);return};if e=s.db.ReplaceLibrary(items);e!=nil{http.Error(w,e.Error(),500);return};http.Redirect(w,r,"/admin",http.StatusSeeOther)}
-func (s *Server) syncMAL(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};_ = s.crawl.RunAll(context.Background());http.Redirect(w,r,"/admin",http.StatusSeeOther)}
+func (s *Server) syncMAL(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};_ = s.crawl.RunMAL(context.Background());http.Redirect(w,r,"/admin",http.StatusSeeOther)}
 func (s *Server) startMirror(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};s.mirror.Start(context.Background());http.Redirect(w,r,"/admin",http.StatusSeeOther)}
 
-func (s *Server) avSeries(lib []database.LibraryItem)([]avSeries,int,int,int,int){
+func (s *Server) avSeries(lib []database.LibraryItem)([]avSeries,map[int]int,int,int){
 	var all []animeav1.Item
 	if raw:=strings.TrimSpace(s.db.GetSetting("animeav1_library_json"));raw!=""{_ = json.Unmarshal([]byte(raw),&all)}
-	all=animeav1.InScope(all)
-	out:=make([]avSeries,0,len(all));watching,completed,local:=0,0,0
+	out:=make([]avSeries,0,len(all));counts:=map[int]int{};local:=0
 	for _,it:=range all{
-		if it.Status==0{watching++}else if it.Status==2{completed++}
-		sr:=avSeries{MediaID:string(it.MediaID),Title:it.Title,Slug:it.Slug,Status:it.StatusName(),Seen:it.Seen,Total:it.Total}
+		counts[it.Status]++
+		sr:=avSeries{MediaID:string(it.MediaID),Title:it.Title,Slug:it.Slug,Status:it.StatusName(),StatusOrder:it.Status,Seen:it.Seen,Total:it.Total,Managed:it.Status==0||it.Status==2,Discovered:s.db.SeriesEpisodeCount(it.Slug)}
 		if it.Slug!=""{sr.URL="/media/"+it.Slug}
 		if li,kind:=matchLocal(it,lib);li!=nil{
 			sr.LocalName=li.Name;sr.LocalFiles=li.Files;sr.LocalBytes=li.Bytes;sr.MatchType=kind;local++
@@ -157,8 +163,8 @@ func (s *Server) avSeries(lib []database.LibraryItem)([]avSeries,int,int,int,int
 		}
 		out=append(out,sr)
 	}
-	sort.Slice(out,func(i,j int)bool{if out[i].Status!=out[j].Status{return out[i].Status<out[j].Status};return strings.ToLower(out[i].Title)<strings.ToLower(out[j].Title)})
-	return out,watching,completed,local,len(out)-local
+	sort.Slice(out,func(i,j int)bool{if out[i].StatusOrder!=out[j].StatusOrder{return out[i].StatusOrder<out[j].StatusOrder};return strings.ToLower(out[i].Title)<strings.ToLower(out[j].Title)})
+	return out,counts,local,len(out)-local
 }
 
 func matchLocal(it animeav1.Item,lib []database.LibraryItem)(*database.LibraryItem,string){

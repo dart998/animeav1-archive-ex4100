@@ -1,0 +1,18 @@
+.table-sort {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.table-sort:hover,
+.table-sort:focus {
+  color: #14b8a6;
+  text-decoration: underline;
+  outline: none;
+}

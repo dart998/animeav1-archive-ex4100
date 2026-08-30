@@ -43,7 +43,10 @@ type Item struct {
 func (i Item) StatusName() string {
 	switch i.Status {
 	case 0: return "Viendo"
+	case 1: return "Planeado"
 	case 2: return "Completado"
+	case 3: return "En pausa"
+	case 4: return "Abandonado"
 	default: return fmt.Sprintf("Estado %d", i.Status)
 	}
 }

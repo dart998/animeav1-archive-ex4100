@@ -4,3 +4,4 @@ archive.sqlite
 .env
 .DS_Store
 data/
+.cache/
