@@ -61,7 +61,7 @@ var (
 	badAdDomain  = regexp.MustCompile(`(?i)(runative-syndicate\.com|runative\.com|syndication|popads|onclicka|adsterra)`)
 )
 
-const localCSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; frame-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'">`
+const localCSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; frame-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'; worker-src 'self' blob:">`
 const localGuard = `<script>(function(){try{
 window.open=function(){return null};
 var bad=function(h){if(!h)return false;if(/^javascript:/i.test(h))return true;try{return new URL(h,location.href).origin!==location.origin}catch(_){return false}};
@@ -108,11 +108,11 @@ func (m *Mirror) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	localPath, upstream, ok := m.requestPaths(r.URL)
 	if !ok { http.NotFound(w,r); return }
 
-	// Los ficheros de texto cacheados se vuelven a sanear al servirlos. Esto evita
-	// que HTML/JS guardado por versiones antiguas conserve publicidad o popups.
+	// Re-sanitizamos HTML/CSS cacheado, pero no alteramos bundles JS propios:
+	// modificar código compilado de SvelteKit puede romper la hidratación.
 	if f, found := existingFile(localPath); found {
 		ctype := mime.TypeByExtension(filepath.Ext(f))
-		if m.isText(ctype, f) {
+		if m.isText(ctype, f) && !m.isJavaScript(ctype, f) {
 			if body, err := os.ReadFile(f); err == nil {
 				body, cleaned := m.prepareForPublish(upstream, body, ctype)
 				if cleaned > 0 { m.addSanitized(cleaned); _ = os.WriteFile(f,body,0o644) }
@@ -166,7 +166,16 @@ func (m *Mirror) run(ctx context.Context) {
 
 func discoverRefs(text string)[]string{out:=[]string{};for _,re:=range []*regexp.Regexp{attrRE,cssURLRE,importRE}{for _,x:=range re.FindAllStringSubmatch(text,-1){if len(x)>1{out=append(out,strings.TrimSpace(x[1]))}}};for _,x:=range srcsetRE.FindAllStringSubmatch(text,-1){if len(x)<2{continue};for _,item:=range strings.Split(x[1],","){if f:=strings.Fields(strings.TrimSpace(item));len(f)>0{out=append(out,f[0])}}};return out}
 
-func (m *Mirror) prepareForPublish(page *url.URL, body []byte, ctype string)([]byte,int){if !m.isText(ctype,page.Path){return body,0};text:=string(body);n:=0;if m.isHTML(ctype,page.Path){text,n=m.sanitizeHTML(page,text)};var x int;text,x=m.neutralizeExternalURLs(text);n+=x;text=m.rewrite(text);return []byte(text),n}
+func (m *Mirror) prepareForPublish(page *url.URL, body []byte, ctype string)([]byte,int){
+	if !m.isText(ctype,page.Path){return body,0}
+	// Los bundles JS first-party se sirven intactos. La seguridad se aplica mediante
+	// CSP + guard en el HTML, evitando corromper la hidratación de SvelteKit.
+	if m.isJavaScript(ctype,page.Path){return body,0}
+	text:=string(body);n:=0
+	if m.isHTML(ctype,page.Path){text,n=m.sanitizeHTML(page,text)}
+	var x int;text,x=m.neutralizeExternalURLs(text);n+=x;text=m.rewrite(text)
+	return []byte(text),n
+}
 
 func (m *Mirror) sanitizeHTML(page *url.URL,text string)(string,int){
 	removed:=0
@@ -185,6 +194,7 @@ func (m *Mirror) skipURL(u *url.URL)bool{p:=strings.ToLower(u.Path);for _,ext:=r
 func (m *Mirror) resolve(base *url.URL,ref string)string{ref=strings.TrimSpace(ref);lower:=strings.ToLower(ref);if ref==""||strings.HasPrefix(ref,"#")||strings.HasPrefix(ref,"data:")||strings.HasPrefix(ref,"blob:")||strings.HasPrefix(lower,"javascript:")||strings.HasPrefix(ref,"mailto:")||badAdDomain.MatchString(ref){return ""};r,e:=url.Parse(ref);if e!=nil{return ""};u:=base.ResolveReference(r);if (u.Scheme!="http"&&u.Scheme!="https")||!m.allowedHost(u.Host)||m.skipURL(u){return ""};return u.String()}
 func (m *Mirror) rewrite(text string)string{for _,prefix:=range []string{"https://"+m.base.Host+"/","http://"+m.base.Host+"/","//"+m.base.Host+"/"}{text=strings.ReplaceAll(text,prefix,"/")};for _,prefix:=range []string{"https://cdn.animeav1.com/","http://cdn.animeav1.com/","//cdn.animeav1.com/"}{text=strings.ReplaceAll(text,prefix,"/_cdn/")};return text}
 func (m *Mirror) isHTML(ctype,path string)bool{return strings.Contains(strings.ToLower(ctype),"text/html")||strings.EqualFold(filepath.Ext(path),".html")||path==""||path=="/"}
+func (m *Mirror) isJavaScript(ctype,path string)bool{c:=strings.ToLower(ctype);e:=strings.ToLower(filepath.Ext(path));return strings.Contains(c,"javascript")||e==".js"||e==".mjs"}
 func (m *Mirror) isText(ctype,path string)bool{c:=strings.ToLower(ctype);e:=strings.ToLower(filepath.Ext(path));return strings.Contains(c,"text/")||strings.Contains(c,"javascript")||strings.Contains(c,"json")||e==".js"||e==".mjs"||e==".css"||e==".html"}
 
 func (m *Mirror) fetch(ctx context.Context,u string)([]byte,string,error){req,e:=http.NewRequestWithContext(ctx,http.MethodGet,u,nil);if e!=nil{return nil,"",e};req.Header.Set("User-Agent","Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 Chrome/124 Safari/537.36");req.Header.Set("Accept","text/html,application/xhtml+xml,application/javascript,text/css,application/json,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8");req.Header.Set("Accept-Language","es-ES,es;q=0.9");if parsed,pe:=url.Parse(u);pe==nil&&strings.EqualFold(parsed.Host,m.base.Host){m.mu.RLock();cookie:=m.sessionCookie;m.mu.RUnlock();if cookie!=""{req.Header.Set("Cookie",cookie)}};resp,e:=m.client.Do(req);if e!=nil{return nil,"",e};defer resp.Body.Close();if resp.StatusCode<200||resp.StatusCode>=400{return nil,"",fmt.Errorf("GET %s: %s",u,resp.Status)};b,e:=io.ReadAll(io.LimitReader(resp.Body,32<<20));if e!=nil{return nil,"",e};if len(b)==0{return nil,"",fmt.Errorf("GET %s: respuesta vacia",u)};ctype:=resp.Header.Get("Content-Type");if ctype==""{ctype=mime.TypeByExtension(filepath.Ext(resp.Request.URL.Path))};return b,ctype,nil}
