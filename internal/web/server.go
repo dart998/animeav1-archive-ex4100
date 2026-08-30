@@ -15,14 +15,14 @@ import (
 	sitemirror "github.com/dart998/animeav1-archive-ex4100/internal/site"
 )
 
-type Server struct { db *database.DB; crawl *crawler.Service; mirror *sitemirror.Mirror; tmpl *template.Template; static string; libraryRoot string; siteRoot string; version string }
-type adminData struct { Version string; State crawler.State; Mirror sitemirror.State; MALUsername string; AnimeAV1CookieConfigured bool; Library []database.LibraryItem; Watching []database.MALWatchingItem }
+type Server struct { db *database.DB; crawl *crawler.Service; mirror *sitemirror.Mirror; tmpl *template.Template; static string; libraryRoot string; siteRoot string; version string; commitSHA string }
+type adminData struct { Version string; CommitSHA string; CommitShort string; CommitURL string; State crawler.State; Mirror sitemirror.State; MALUsername string; AnimeAV1CookieConfigured bool; Library []database.LibraryItem; Watching []database.MALWatchingItem }
 
-func New(db *database.DB,c *crawler.Service,mirror *sitemirror.Mirror,webDir,libraryRoot,siteRoot,version string)(*Server,error){
+func New(db *database.DB,c *crawler.Service,mirror *sitemirror.Mirror,webDir,libraryRoot,siteRoot,version,commitSHA string)(*Server,error){
 	fm:=template.FuncMap{"bytes":func(v int64)string{const gb=1024*1024*1024;const mb=1024*1024;if v>=gb{return fmt.Sprintf("%.1f GB",float64(v)/gb)};if v>=mb{return fmt.Sprintf("%.1f MB",float64(v)/mb)};return fmt.Sprintf("%d B",v)}}
 	t,e:=template.New("root").Funcs(fm).ParseFiles(filepath.Join(webDir,"templates","admin.html"));if e!=nil{return nil,e}
 	mirror.SetSessionCookie(db.GetSetting("animeav1_session_cookie"))
-	return &Server{db:db,crawl:c,mirror:mirror,tmpl:t,static:filepath.Join(webDir,"static"),libraryRoot:libraryRoot,siteRoot:siteRoot,version:version},nil
+	return &Server{db:db,crawl:c,mirror:mirror,tmpl:t,static:filepath.Join(webDir,"static"),libraryRoot:libraryRoot,siteRoot:siteRoot,version:version,commitSHA:commitSHA},nil
 }
 func (s *Server) Handler()http.Handler{
 	m:=http.NewServeMux()
@@ -33,8 +33,8 @@ func (s *Server) Handler()http.Handler{
 	return m
 }
 func (s *Server) health(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","application/json");_,_=w.Write([]byte(`{"status":"ok"}`))}
-func (s *Server) status(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","application/json");_=json.NewEncoder(w).Encode(map[string]any{"version":s.version,"crawler":s.crawl.State.Snapshot(),"mirror":s.mirror.Snapshot(),"animeav1_session_configured":s.mirror.HasSessionCookie()})}
-func (s *Server) admin(w http.ResponseWriter,r *http.Request){if r.URL.Path!="/admin"{http.NotFound(w,r);return};items,e:=s.db.Library();if e!=nil{http.Error(w,e.Error(),500);return};watching,e:=s.db.MALWatching();if e!=nil{http.Error(w,e.Error(),500);return};d:=adminData{Version:s.version,State:s.crawl.State.Snapshot(),Mirror:s.mirror.Snapshot(),MALUsername:s.db.GetSetting("mal_username"),AnimeAV1CookieConfigured:s.mirror.HasSessionCookie(),Library:items,Watching:watching};if e=s.tmpl.ExecuteTemplate(w,"admin.html",d);e!=nil{http.Error(w,e.Error(),500)}}
+func (s *Server) status(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","application/json");_=json.NewEncoder(w).Encode(map[string]any{"version":s.version,"commit":s.commitSHA,"crawler":s.crawl.State.Snapshot(),"mirror":s.mirror.Snapshot(),"animeav1_session_configured":s.mirror.HasSessionCookie()})}
+func (s *Server) admin(w http.ResponseWriter,r *http.Request){if r.URL.Path!="/admin"{http.NotFound(w,r);return};items,e:=s.db.Library();if e!=nil{http.Error(w,e.Error(),500);return};watching,e:=s.db.MALWatching();if e!=nil{http.Error(w,e.Error(),500);return};short:=s.commitSHA;if len(short)>7{short=short[:7]};commitURL:="";if s.commitSHA!=""&&s.commitSHA!="unknown"{commitURL="https://github.com/dart998/animeav1-archive-ex4100/commit/"+s.commitSHA};d:=adminData{Version:s.version,CommitSHA:s.commitSHA,CommitShort:short,CommitURL:commitURL,State:s.crawl.State.Snapshot(),Mirror:s.mirror.Snapshot(),MALUsername:s.db.GetSetting("mal_username"),AnimeAV1CookieConfigured:s.mirror.HasSessionCookie(),Library:items,Watching:watching};if e=s.tmpl.ExecuteTemplate(w,"admin.html",d);e!=nil{http.Error(w,e.Error(),500)}}
 func (s *Server) settings(w http.ResponseWriter,r *http.Request){
 	if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return}
 	if e:=r.ParseForm();e!=nil{http.Error(w,e.Error(),400);return}
