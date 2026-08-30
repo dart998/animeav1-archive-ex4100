@@ -38,6 +38,7 @@ jobs:
           push: true
           build-args: |
             VERSION=0.4.0
+            COMMIT_SHA=${{ github.sha }}
           tags: ovelayos/animeav1-archive-ex4100:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
