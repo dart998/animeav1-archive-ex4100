@@ -19,17 +19,18 @@ import (
 	"github.com/dart998/animeav1-archive-ex4100/internal/archive"
 	"github.com/dart998/animeav1-archive-ex4100/internal/config"
 	"github.com/dart998/animeav1-archive-ex4100/internal/database"
+	malclient "github.com/dart998/animeav1-archive-ex4100/internal/mal"
 	"github.com/dart998/animeav1-archive-ex4100/internal/providers"
 )
 
-type State struct { mu sync.RWMutex; Running bool `json:"running"`; LastStart,LastFinish,LastStatus,LastError string }
-func (s *State) Snapshot() State { s.mu.RLock(); defer s.mu.RUnlock(); return State{Running:s.Running,LastStart:s.LastStart,LastFinish:s.LastFinish,LastStatus:s.LastStatus,LastError:s.LastError} }
+type State struct { mu sync.RWMutex; Running bool `json:"running"`; LastStart,LastFinish,LastStatus,LastError string; MALWatching int `json:"mal_watching"`; MALMatched int `json:"mal_matched"` }
+func (s *State) Snapshot() State { s.mu.RLock(); defer s.mu.RUnlock(); return State{Running:s.Running,LastStart:s.LastStart,LastFinish:s.LastFinish,LastStatus:s.LastStatus,LastError:s.LastError,MALWatching:s.MALWatching,MALMatched:s.MALMatched} }
 
-type Service struct { cfg config.Config; db *database.DB; client *http.Client; State *State }
+type Service struct { cfg config.Config; db *database.DB; client *http.Client; mal *malclient.Client; State *State }
 type episodeMeta struct { Anime string `json:"anime"`; Slug string `json:"slug"`; Episode int `json:"episode"`; URL string `json:"url"`; SelectedProvider string `json:"selected_provider"`; SelectedURL string `json:"selected_url,omitempty"`; Sources []database.Source `json:"sources"`; ArchivedPath string `json:"archived_path,omitempty"`; SHA256 string `json:"sha256,omitempty"` }
 
 var h1RE=regexp.MustCompile(`(?is)<h1[^>]*>\s*([^<]+)`)
-func New(cfg config.Config, db *database.DB)*Service{ s:=&Service{cfg:cfg,db:db,client:&http.Client{Timeout:25*time.Second},State:&State{}}; s.RefreshConfigState(); return s }
+func New(cfg config.Config, db *database.DB)*Service{ s:=&Service{cfg:cfg,db:db,client:&http.Client{Timeout:25*time.Second},mal:malclient.New(),State:&State{}}; s.RefreshConfigState(); return s }
 func (s *Service) RefreshConfigState(){
 	username:=strings.TrimSpace(s.db.GetSetting("mal_username"))
 	s.State.mu.Lock();defer s.State.mu.Unlock()
@@ -39,11 +40,18 @@ func (s *Service) RefreshConfigState(){
 }
 func (s *Service) RunAll(ctx context.Context) error {
 	s.State.mu.Lock(); if s.State.Running {s.State.mu.Unlock();return fmt.Errorf("crawl already running")}; s.State.Running=true;s.State.LastStart=time.Now().Format(time.RFC3339);s.State.mu.Unlock()
+	defer func(){s.State.mu.Lock();s.State.Running=false;s.State.LastFinish=time.Now().Format(time.RFC3339);s.State.mu.Unlock()}()
 	username:=strings.TrimSpace(s.db.GetSetting("mal_username"))
-	s.State.mu.Lock();defer s.State.mu.Unlock();s.State.Running=false;s.State.LastFinish=time.Now().Format(time.RFC3339)
-	if username==""{s.State.LastStatus="waiting_for_mal";s.State.LastError="Configura el usuario publico de MyAnimeList en /admin";return nil}
-	s.State.LastStatus="mal_configured";s.State.LastError="";return nil
+	if username==""{s.State.mu.Lock();s.State.LastStatus="waiting_for_mal";s.State.LastError="Configura el usuario publico de MyAnimeList en /admin";s.State.mu.Unlock();return nil}
+	library,err:=s.db.Library();if err!=nil{return s.fail("library_error",err)}
+	watching,err:=s.mal.Watching(ctx,username,library);if err!=nil{return s.fail("mal_error",err)}
+	if err=s.db.ReplaceMALWatching(watching);err!=nil{return s.fail("mal_store_error",err)}
+	matched:=0;for _,x:=range watching{if x.LocalPath!=""{matched++}}
+	s.State.mu.Lock();s.State.MALWatching=len(watching);s.State.MALMatched=matched;s.State.LastStatus="mal_synced";s.State.LastError="";s.State.mu.Unlock()
+	log.Printf("[MAL] %s: %d en Watching, %d con carpeta local candidata",username,len(watching),matched)
+	return nil
 }
+func (s *Service) fail(status string,err error)error{s.State.mu.Lock();s.State.LastStatus=status;s.State.LastError=err.Error();s.State.mu.Unlock();return err}
 func (s *Service) RunTarget(ctx context.Context,slug string) error {
 	runID,_:=s.db.BeginRun(slug); status:="ok"; msg:=""; defer func(){s.db.FinishRun(runID,status,msg)}()
 	animeURL:=strings.TrimRight(s.cfg.BaseURL,"/")+"/media/"+slug; log.Printf("[CRAWL] %s",slug); body,err:=s.fetch(ctx,animeURL); if err!=nil{status="error";msg=err.Error();return err}
