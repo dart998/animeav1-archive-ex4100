@@ -12,6 +12,7 @@ import (
 	"github.com/dart998/animeav1-archive-ex4100/internal/crawler"
 	"github.com/dart998/animeav1-archive-ex4100/internal/database"
 	libraryindex "github.com/dart998/animeav1-archive-ex4100/internal/library"
+	sitemirror "github.com/dart998/animeav1-archive-ex4100/internal/site"
 	webui "github.com/dart998/animeav1-archive-ex4100/internal/web"
 )
 
@@ -25,6 +26,7 @@ func main(){
 	cr:=crawler.New(cfg,db)
 	if cfg.CrawlerEnabled { go func(){if e:=cr.RunAll(context.Background());e!=nil{log.Printf("initial crawl: %v",e)};t:=time.NewTicker(cfg.CrawlerInterval);defer t.Stop();for range t.C{if e:=cr.RunAll(context.Background());e!=nil{log.Printf("scheduled crawl: %v",e)}}}() }
 	go func(){t:=time.NewTicker(6*time.Hour);defer t.Stop();for range t.C{if items,err:=libraryindex.Scan(libraryRoot);err==nil{_ = db.ReplaceLibrary(items)}}}()
-	ui,e:=webui.New(db,cr,"/app/web",libraryRoot);if e!=nil{log.Fatal(e)}
+	mirror,e:=sitemirror.New(cfg.BaseURL,filepath.Join(cfg.DataDir,"site"));if e!=nil{log.Fatal(e)}
+	ui,e:=webui.New(db,cr,mirror,"/app/web",libraryRoot,filepath.Join(cfg.DataDir,"site"));if e!=nil{log.Fatal(e)}
 	addr:=":"+cfg.Port;log.Printf("animeav1-archive %s listening on %s",version,addr);log.Fatal(http.ListenAndServe(addr,ui.Handler()))
 }
