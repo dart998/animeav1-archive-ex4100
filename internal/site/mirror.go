@@ -45,7 +45,7 @@ type Mirror struct {
 }
 
 var (
-	attrRE       = regexp.MustCompile(`(?i)(?:href|src|poster|action)=["']([^"'#]+)["']`)
+	attrRE       = regexp.MustCompile(`(?i)(?:href|src|poster|action|data-src|data-lazy-src|xlink:href)=["']([^"'#]+)["']`)
 	srcsetRE     = regexp.MustCompile(`(?i)srcset=["']([^"']+)["']`)
 	cssURLRE     = regexp.MustCompile(`(?i)url\(\s*["']?([^"')]+)`)
 	importRE     = regexp.MustCompile(`(?i)(?:from\s*|import\s*\(\s*)["']([^"']+)["']`)
@@ -83,8 +83,22 @@ func New(baseURL, root string) (*Mirror, error) {
 	if err != nil { return nil, err }
 	b := adblock.New(filepath.Join(filepath.Dir(root), "easylist.txt"))
 	m := &Mirror{base:u, root:root, client:&http.Client{Timeout:30*time.Second}, blocker:b}
+	m.migrateFrontendCache()
 	go m.refreshEasyList()
 	return m, nil
+}
+
+func (m *Mirror) migrateFrontendCache() {
+	marker := filepath.Join(m.root, ".frontend-cache-v043")
+	if _, err := os.Stat(marker); err == nil { return }
+	_ = filepath.Walk(m.root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() { return nil }
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext == ".js" || ext == ".mjs" { _ = os.Remove(path) }
+		return nil
+	})
+	_ = os.MkdirAll(m.root, 0o755)
+	_ = os.WriteFile(marker, []byte(time.Now().Format(time.RFC3339)), 0o644)
 }
 
 func (m *Mirror) refreshEasyList() {
@@ -128,28 +142,38 @@ func (m *Mirror) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	localPath, upstream, ok := m.requestPaths(r.URL)
 	if !ok { http.NotFound(w,r); return }
 
-	// Todo texto cacheado se vuelve a procesar. En JS solo se neutralizan URLs
-	// bloqueadas por EasyList; no se reescribe el resto del bundle SvelteKit.
-	if f, found := existingFile(localPath); found {
-		ctype := mime.TypeByExtension(filepath.Ext(f))
-		if m.isText(ctype, f) {
-			if body, err := os.ReadFile(f); err == nil {
-				body, cleaned := m.prepareForPublish(upstream, body, ctype)
-				if cleaned > 0 { m.addSanitized(cleaned); _ = os.WriteFile(f,body,0o644) }
-				if ctype != "" { w.Header().Set("Content-Type",ctype) }
-				w.Header().Set("Cache-Control","no-cache")
+	cachedFile, cached := existingFile(localPath)
+	cachedType := ""
+	if cached { cachedType = mime.TypeByExtension(filepath.Ext(cachedFile)) }
+
+	// HTML es dinámico: al visitar una página se obtiene la versión actual de AnimeAV1,
+	// se sanitiza y se sustituye en caché. Los assets estáticos sí se sirven del NAS.
+	if cached && !m.isHTML(cachedType, upstream.Path) {
+		if m.isText(cachedType, cachedFile) {
+			if body, err := os.ReadFile(cachedFile); err == nil {
+				body, cleaned := m.prepareForPublish(upstream, body, cachedType)
+				if cleaned > 0 { m.addSanitized(cleaned); _ = os.WriteFile(cachedFile,body,0o644) }
+				if cachedType != "" { w.Header().Set("Content-Type",cachedType) }
+				w.Header().Set("Cache-Control","public, max-age=3600")
 				if r.Method != http.MethodHead { _,_ = w.Write(body) }
 				return
 			}
 		}
-		http.ServeFile(w,r,f); return
+		http.ServeFile(w,r,cachedFile)
+		return
 	}
 
 	body, ctype, err := m.fetch(r.Context(), upstream.String())
-	if err != nil { m.recordError(err); http.Error(w,err.Error(),http.StatusBadGateway); return }
+	if err != nil {
+		m.recordError(err)
+		if cached { http.ServeFile(w,r,cachedFile); return }
+		http.Error(w,err.Error(),http.StatusBadGateway)
+		return
+	}
 	body, cleaned := m.prepareForPublish(upstream,body,ctype); if cleaned>0 { m.addSanitized(cleaned) }
 	if r.URL.RawQuery=="" && !strings.Contains(strings.ToLower(ctype),"application/json") { _ = m.save(m.root,upstream,body,ctype) }
-	if ctype!="" { w.Header().Set("Content-Type",ctype) }; w.Header().Set("Cache-Control","no-cache")
+	if ctype!="" { w.Header().Set("Content-Type",ctype) }
+	w.Header().Set("Cache-Control","no-cache, no-store, must-revalidate")
 	if r.Method!=http.MethodHead { _,_ = w.Write(body) }
 }
 
@@ -219,9 +243,9 @@ func (m *Mirror) resolve(base *url.URL,ref string)string{ref=strings.TrimSpace(r
 func (m *Mirror) rewrite(text string)string{for _,prefix:=range []string{"https://"+m.base.Host+"/","http://"+m.base.Host+"/","//"+m.base.Host+"/"}{text=strings.ReplaceAll(text,prefix,"/")};for _,prefix:=range []string{"https://cdn.animeav1.com/","http://cdn.animeav1.com/","//cdn.animeav1.com/"}{text=strings.ReplaceAll(text,prefix,"/_cdn/")};return text}
 func (m *Mirror) isHTML(ctype,path string)bool{return strings.Contains(strings.ToLower(ctype),"text/html")||strings.EqualFold(filepath.Ext(path),".html")||path==""||path=="/"}
 func (m *Mirror) isJavaScript(ctype,path string)bool{c:=strings.ToLower(ctype);e:=strings.ToLower(filepath.Ext(path));return strings.Contains(c,"javascript")||e==".js"||e==".mjs"}
-func (m *Mirror) isText(ctype,path string)bool{c:=strings.ToLower(ctype);e:=strings.ToLower(filepath.Ext(path));return strings.Contains(c,"text/")||strings.Contains(c,"javascript")||strings.Contains(c,"json")||e==".js"||e==".mjs"||e==".css"||e==".html"}
+func (m *Mirror) isText(ctype,path string)bool{c:=strings.ToLower(ctype);e:=strings.ToLower(filepath.Ext(path));return strings.Contains(c,"text/")||strings.Contains(c,"javascript")||strings.Contains(c,"json")||strings.Contains(c,"svg")||e==".js"||e==".mjs"||e==".css"||e==".html"||e==".svg"}
 
-func (m *Mirror) fetch(ctx context.Context,u string)([]byte,string,error){parsed,pe:=url.Parse(u);if pe==nil&&m.blockedURL(parsed){return nil,"",fmt.Errorf("bloqueado por EasyList: %s",parsed.Hostname())};req,e:=http.NewRequestWithContext(ctx,http.MethodGet,u,nil);if e!=nil{return nil,"",e};req.Header.Set("User-Agent","Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 Chrome/124 Safari/537.36");req.Header.Set("Accept","text/html,application/xhtml+xml,application/javascript,text/css,application/json,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8");req.Header.Set("Accept-Language","es-ES,es;q=0.9");if pe==nil&&strings.EqualFold(parsed.Host,m.base.Host){m.mu.RLock();cookie:=m.sessionCookie;m.mu.RUnlock();if cookie!=""{req.Header.Set("Cookie",cookie)}};resp,e:=m.client.Do(req);if e!=nil{return nil,"",e};defer resp.Body.Close();if resp.StatusCode<200||resp.StatusCode>=400{return nil,"",fmt.Errorf("GET %s: %s",u,resp.Status)};b,e:=io.ReadAll(io.LimitReader(resp.Body,32<<20));if e!=nil{return nil,"",e};if len(b)==0{return nil,"",fmt.Errorf("GET %s: respuesta vacia",u)};ctype:=resp.Header.Get("Content-Type");if ctype==""{ctype=mime.TypeByExtension(filepath.Ext(resp.Request.URL.Path))};return b,ctype,nil}
+func (m *Mirror) fetch(ctx context.Context,u string)([]byte,string,error){parsed,pe:=url.Parse(u);if pe==nil&&m.blockedURL(parsed){return nil,"",fmt.Errorf("bloqueado por EasyList: %s",parsed.Hostname())};req,e:=http.NewRequestWithContext(ctx,http.MethodGet,u,nil);if e!=nil{return nil,"",e};req.Header.Set("User-Agent","Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 Chrome/124 Safari/537.36");req.Header.Set("Accept","text/html,application/xhtml+xml,application/javascript,text/css,application/json,image/avif,image/webp,image/png,image/svg+xml,font/woff2,font/woff,*/*;q=0.8");req.Header.Set("Accept-Language","es-ES,es;q=0.9");if pe==nil&&strings.EqualFold(parsed.Host,m.base.Host){m.mu.RLock();cookie:=m.sessionCookie;m.mu.RUnlock();if cookie!=""{req.Header.Set("Cookie",cookie)}};resp,e:=m.client.Do(req);if e!=nil{return nil,"",e};defer resp.Body.Close();if resp.StatusCode<200||resp.StatusCode>=400{return nil,"",fmt.Errorf("GET %s: %s",u,resp.Status)};b,e:=io.ReadAll(io.LimitReader(resp.Body,32<<20));if e!=nil{return nil,"",e};if len(b)==0{return nil,"",fmt.Errorf("GET %s: respuesta vacia",u)};ctype:=resp.Header.Get("Content-Type");if ctype==""{ctype=mime.TypeByExtension(filepath.Ext(resp.Request.URL.Path))};return b,ctype,nil}
 func (m *Mirror) save(root string,u *url.URL,body []byte,ctype string)error{p:=strings.TrimPrefix(filepath.Clean(u.Path),string(filepath.Separator));if u.Host=="cdn.animeav1.com"{p=filepath.Join("_cdn",p)};if p=="."||p==""{p="index.html"}else if m.isHTML(ctype,u.Path)&&filepath.Ext(p)==""{p=filepath.Join(p,"index.html")};full:=filepath.Join(root,p);cleanRoot:=filepath.Clean(root)+string(filepath.Separator);if !strings.HasPrefix(full,cleanRoot)&&full!=filepath.Join(root,"index.html"){return fmt.Errorf("unsafe path: %s",p)};if e:=os.MkdirAll(filepath.Dir(full),0o755);e!=nil{return e};return os.WriteFile(full,body,0o644)}
 func (m *Mirror) addSanitized(n int){m.mu.Lock();m.state.Sanitized+=n;m.mu.Unlock()}
 func (m *Mirror) recordError(err error){m.mu.Lock();defer m.mu.Unlock();m.state.Errors++;m.state.LastError=err.Error();m.state.ErrorLog=append(m.state.ErrorLog,ErrorEntry{Time:time.Now().Format(time.RFC3339),Message:err.Error()});if len(m.state.ErrorLog)>200{m.state.ErrorLog=append([]ErrorEntry(nil),m.state.ErrorLog[len(m.state.ErrorLog)-200:]...)}}
