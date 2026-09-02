@@ -88,6 +88,7 @@ func (s *Server) Handler()http.Handler{
 	m.HandleFunc("/admin/sync-av1",s.syncAV1)
 	m.HandleFunc("/admin/sync-mal",s.syncMAL)
 	m.HandleFunc("/admin/mirror",s.startMirror)
+	m.HandleFunc("/admin/mirror/stop",s.stopMirror)
 	m.HandleFunc("/admin",s.admin)
 	m.Handle("/",s.mirror.Handler())
 	return m
@@ -148,6 +149,7 @@ func (s *Server) syncAV1(w http.ResponseWriter,r *http.Request){
 func (s *Server) rescan(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};items,e:=libraryindex.Scan(s.libraryRoot);if e!=nil{http.Error(w,e.Error(),500);return};if e=s.db.ReplaceLibrary(items);e!=nil{http.Error(w,e.Error(),500);return};http.Redirect(w,r,"/admin",http.StatusSeeOther)}
 func (s *Server) syncMAL(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};_ = s.crawl.RunMAL(context.Background());http.Redirect(w,r,"/admin",http.StatusSeeOther)}
 func (s *Server) startMirror(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};s.mirror.Start(context.Background());http.Redirect(w,r,"/admin",http.StatusSeeOther)}
+func (s *Server) stopMirror(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};s.mirror.Stop();http.Redirect(w,r,"/admin",http.StatusSeeOther)}
 
 func (s *Server) avSeries(lib []database.LibraryItem)([]avSeries,map[int]int,int,int){
 	var all []animeav1.Item
