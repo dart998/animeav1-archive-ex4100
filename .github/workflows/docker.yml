@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  APP_VERSION: 0.6.0
+  APP_VERSION: 0.6.1
   IMAGE_NAME: ovelayos/animeav1-archive-ex4100
 
 jobs:
