@@ -42,6 +42,7 @@ type Mirror struct {
 	mu            sync.RWMutex
 	state         State
 	sessionCookie string
+	cancel        context.CancelFunc
 }
 
 var (
@@ -125,12 +126,24 @@ func (m *Mirror) Snapshot() State {
 func (m *Mirror) SetSessionCookie(cookie string) { m.mu.Lock(); m.sessionCookie = strings.TrimSpace(cookie); m.mu.Unlock() }
 func (m *Mirror) HasSessionCookie() bool { m.mu.RLock(); defer m.mu.RUnlock(); return m.sessionCookie != "" }
 
-func (m *Mirror) Start(ctx context.Context) bool {
+func (m *Mirror) Start(parent context.Context) bool {
 	m.mu.Lock()
 	if m.state.Running { m.mu.Unlock(); return false }
+	ctx, cancel := context.WithCancel(parent)
+	m.cancel = cancel
 	m.state = State{Running:true, Started:time.Now().Format(time.RFC3339), ErrorLog:[]ErrorEntry{}}
 	m.mu.Unlock()
 	go m.run(ctx)
+	return true
+}
+
+func (m *Mirror) Stop() bool {
+	m.mu.Lock()
+	if !m.state.Running { m.mu.Unlock(); return false }
+	cancel := m.cancel
+	m.state.Current = "Deteniendo..."
+	m.mu.Unlock()
+	if cancel != nil { cancel() }
 	return true
 }
 
@@ -146,8 +159,6 @@ func (m *Mirror) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	cachedType := ""
 	if cached { cachedType = mime.TypeByExtension(filepath.Ext(cachedFile)) }
 
-	// HTML es dinámico: al visitar una página se obtiene la versión actual de AnimeAV1,
-	// se sanitiza y se sustituye en caché. Los assets estáticos sí se sirven del NAS.
 	if cached && !m.isHTML(cachedType, upstream.Path) {
 		if m.isText(cachedType, cachedFile) {
 			if body, err := os.ReadFile(cachedFile); err == nil {
@@ -188,19 +199,24 @@ func (m *Mirror) requestPaths(req *url.URL) (string,*url.URL,bool) {
 func existingFile(path string)(string,bool){st,e:=os.Stat(path);if e==nil&&!st.IsDir(){return path,true};if e==nil&&st.IsDir(){idx:=filepath.Join(path,"index.html");if s,x:=os.Stat(idx);x==nil&&!s.IsDir(){return idx,true}};return "",false}
 
 func (m *Mirror) run(ctx context.Context) {
-	defer func(){m.mu.Lock();m.state.Running=false;m.state.Finished=time.Now().Format(time.RFC3339);m.state.Current="";m.mu.Unlock()}()
-	buildRoot:=m.root+".building"; _=os.RemoveAll(buildRoot); if err:=os.MkdirAll(buildRoot,0o755);err!=nil{m.fail(err);return}
+	buildRoot:=m.root+".building"
+	defer func(){
+		_ = os.RemoveAll(buildRoot)
+		m.mu.Lock();m.state.Running=false;m.state.Finished=time.Now().Format(time.RFC3339);m.state.Current="";m.cancel=nil;m.mu.Unlock()
+	}()
+	_ = os.RemoveAll(buildRoot); if err:=os.MkdirAll(buildRoot,0o755);err!=nil{m.fail(err);return}
 	queue:=[]string{m.base.String()}; seen:=map[string]bool{}
 	for len(queue)>0 {
 		select{case<-ctx.Done():return;default:}
 		raw:=queue[0];queue=queue[1:];u,err:=url.Parse(raw);if err!=nil{continue};u.Fragment=""
 		if !m.allowedHost(u.Host)||m.skipURL(u){continue};key:=u.String();if seen[key]{continue};seen[key]=true
 		m.mu.Lock();m.state.Current=key;m.mu.Unlock()
-		body,ctype,err:=m.fetch(ctx,key);if err!=nil{m.recordError(err);continue}
+		body,ctype,err:=m.fetch(ctx,key);if err!=nil{if ctx.Err()!=nil{return};m.recordError(err);continue}
 		if m.isText(ctype,u.Path){original:=string(body);for _,ref:=range discoverRefs(original){if abs:=m.resolve(u,ref);abs!=""{queue=append(queue,abs)}}}
 		body,n:=m.prepareForPublish(u,body,ctype);if n>0{m.addSanitized(n)}
 		if err=m.save(buildRoot,u,body,ctype);err!=nil{m.recordError(err);continue}
-		m.mu.Lock();m.state.Fetched++;m.mu.Unlock();time.Sleep(75*time.Millisecond)
+		m.mu.Lock();m.state.Fetched++;m.mu.Unlock()
+		select{case<-ctx.Done():return;case<-time.After(75*time.Millisecond):}
 	}
 	index:=filepath.Join(buildRoot,"index.html");info,err:=os.Stat(index);if err!=nil||info.Size()<1024{m.fail(fmt.Errorf("mirror incompleto: index.html no existe o es demasiado pequeno"));return}
 	oldRoot:=m.root+".old";_=os.RemoveAll(oldRoot);if _,err=os.Stat(m.root);err==nil{if err=os.Rename(m.root,oldRoot);err!=nil{m.fail(err);return}}
@@ -214,10 +230,8 @@ func (m *Mirror) prepareForPublish(page *url.URL, body []byte, ctype string)([]b
 	if !m.isText(ctype,page.Path){return body,0}
 	text:=string(body)
 	if m.isJavaScript(ctype,page.Path){
-		// Experimento v0.6.1: conservar los bundles de AnimeAV1 byte a byte.
-		// El filtrado de scripts HTML, CSP, guard local, iframes y navegación externa
-		// siguen activos; solo dejamos de reescribir URLs dentro del JavaScript.
-		return body,0
+		text,n:=m.neutralizeBlockedURLs(text)
+		return []byte(text),n
 	}
 	n:=0
 	if m.isHTML(ctype,page.Path){text,n=m.sanitizeHTML(page,text)}
@@ -231,7 +245,8 @@ func (m *Mirror) sanitizeHTML(page *url.URL,text string)(string,int){
 	text=iframeRE.ReplaceAllStringFunc(text,func(block string)string{attrs:=block;if p:=iframeRE.FindStringSubmatch(block);len(p)>1{attrs=p[1]+p[2]};sm:=iframeSrcRE.FindStringSubmatch(attrs);if len(sm)<2{return block};r,e:=url.Parse(strings.TrimSpace(sm[1]));if e!=nil{return block};u:=page.ResolveReference(r);if m.blockedURL(u)||(u.Scheme=="http"||u.Scheme=="https")&&!m.allowedHost(u.Host){removed++;return `<div class="mirror-player-blocked">Reproductor externo no disponible en la copia local</div>`};return block})
 	text=scriptRE.ReplaceAllStringFunc(text,func(block string)string{parts:=scriptRE.FindStringSubmatch(block);if len(parts)<3{return block};attrs,body:=parts[1],parts[2];if sm:=scriptSrcRE.FindStringSubmatch(attrs);len(sm)>1{r,e:=url.Parse(strings.TrimSpace(sm[1]));if e!=nil{removed++;return ""};u:=page.ResolveReference(r);if m.blockedURL(u)||((u.Scheme=="http"||u.Scheme=="https")&&!m.allowedHost(u.Host)){removed++;return ""}};if popupJS.MatchString(body)||badAdDomain.MatchString(body){removed++;return ""};return block})
 	text=sanitizeEventAttrs(text,eventDQRE,&removed);text=sanitizeEventAttrs(text,eventSQRE,&removed);text=m.sanitizeNavAttrs(page,text,navDQRE,'"',&removed);text=m.sanitizeNavAttrs(page,text,navSQRE,'\'',&removed)
-	inject:=localCSP+localGuard;if headOpenRE.MatchString(text){text=headOpenRE.ReplaceAllString(text,`${0}`+inject)}else{text=inject+text};return text,removed
+	// Experimento v0.6.2: no inyectar localGuard. El CSP y el filtrado HTML siguen activos.
+	inject:=localCSP;if headOpenRE.MatchString(text){text=headOpenRE.ReplaceAllString(text,`${0}`+inject)}else{text=inject+text};return text,removed
 }
 
 func sanitizeEventAttrs(text string,re *regexp.Regexp,removed *int)string{return re.ReplaceAllStringFunc(text,func(attr string)string{m:=re.FindStringSubmatch(attr);if len(m)>1&&(popupJS.MatchString(m[1])||badAdDomain.MatchString(m[1])){(*removed)++;return ""};return attr})}
