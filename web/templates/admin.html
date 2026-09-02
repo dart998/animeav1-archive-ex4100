@@ -37,15 +37,15 @@
   <div class="card">
     <h2>Biblioteca AV1</h2>
     <div class="stat-grid">
-      <div class="stat"><div class="muted">Viendo</div><strong>{{.AV1Watching}}</strong></div>
-      <div class="stat"><div class="muted">Planeadas</div><strong>{{.AV1Planned}}</strong></div>
-      <div class="stat"><div class="muted">Completadas</div><strong>{{.AV1Completed}}</strong></div>
-      <div class="stat"><div class="muted">En pausa</div><strong>{{.AV1OnHold}}</strong></div>
-      <div class="stat"><div class="muted">Abandonadas</div><strong>{{.AV1Dropped}}</strong></div>
-      <div class="stat"><div class="muted">Con contenido local</div><strong>{{.AV1Local}}</strong></div>
-      <div class="stat"><div class="muted">Sin coincidencia local</div><strong>{{.AV1Unmatched}}</strong></div>
+      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:0" data-title="Viendo"><div class="muted">Viendo</div><strong>{{.AV1Watching}}</strong></div>
+      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:1" data-title="Planeadas"><div class="muted">Planeadas</div><strong>{{.AV1Planned}}</strong></div>
+      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:2" data-title="Completadas"><div class="muted">Completadas</div><strong>{{.AV1Completed}}</strong></div>
+      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:3" data-title="En pausa"><div class="muted">En pausa</div><strong>{{.AV1OnHold}}</strong></div>
+      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:4" data-title="Abandonadas"><div class="muted">Abandonadas</div><strong>{{.AV1Dropped}}</strong></div>
+      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="local" data-title="Con contenido local"><div class="muted">Con contenido local</div><strong>{{.AV1Local}}</strong></div>
+      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="unmatched" data-title="Sin coincidencia local"><div class="muted">Sin coincidencia local</div><strong>{{.AV1Unmatched}}</strong></div>
     </div>
-    <p class="form-help">Se muestran las cinco categorías de AnimeAV1. Solo <strong>Viendo</strong> y <strong>Completado</strong> se rastrean automáticamente.</p>
+    <p class="form-help">Pulsa cualquier contador para ver sus series. Solo <strong>Viendo</strong> y <strong>Completado</strong> se rastrean automáticamente.</p>
   </div>
 </div>
 
@@ -61,6 +61,7 @@
   <p class="muted mirror-current" id="mirror-current">{{.Mirror.Current}}</p>
   <div class="actions mirror-actions">
     <form method="post" action="/admin/mirror"><button type="submit">Descargar / actualizar sitio</button></form>
+    <form method="post" action="/admin/mirror/stop"><button id="mirror-stop-button" type="submit" class="danger" {{if not .Mirror.Running}}disabled{{end}}>Detener</button></form>
     <button type="button" class="secondary" id="mirror-logs-button">Ver logs</button>
   </div>
 </div>
@@ -71,7 +72,7 @@
     <thead><tr><th><button type="button" class="table-sort" data-sort="title">Serie AnimeAV1 <span aria-hidden="true">↕</span></button></th><th><button type="button" class="table-sort" data-sort="status">Estado <span aria-hidden="true">↕</span></button></th><th>Alcance</th><th>Progreso AV1</th><th>Episodios detectados</th><th>Contenido local</th><th>Coincidencia</th></tr></thead>
     <tbody id="av1-series-body">
     {{range .AV1Series}}
-      <tr data-title="{{.Title}}" data-status="{{.StatusOrder}}">
+      <tr data-title="{{.Title}}" data-status="{{.StatusOrder}}" data-url="{{.URL}}" data-local="{{if .LocalName}}1{{else}}0{{end}}">
         <td>{{if .URL}}<strong><a href="{{.URL}}">{{.Title}}</a></strong>{{else}}<strong>{{.Title}}</strong>{{end}}{{if .Slug}}<small class="meta-block">{{.Slug}}</small>{{end}}</td>
         <td>{{.Status}}</td>
         <td>{{if .Managed}}<span class="ok">Gestionada</span>{{else}}Solo visible{{end}}</td>
@@ -114,16 +115,29 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="av1-list-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="av1-list-title">
+    <div class="modal-head"><h2 id="av1-list-title">Biblioteca AV1</h2><button type="button" class="secondary" id="av1-list-close">Cerrar</button></div>
+    <p class="muted" id="av1-list-summary"></p>
+    <div class="series-popup-list" id="av1-list-items"></div>
+  </div>
+</div>
+
 <script>
 (function(){
-  const q=id=>document.getElementById(id); let errorLog=[]; const modal=q('logs-modal');
+  const q=id=>document.getElementById(id); let errorLog=[]; const modal=q('logs-modal'); const listModal=q('av1-list-modal');
   function renderErrors(){q('logs-summary').textContent=errorLog.length?('Mostrando '+errorLog.length+' errores recientes.'):'No hay errores registrados.';q('logs-list').innerHTML='';errorLog.slice().reverse().forEach(e=>{const row=document.createElement('div');row.className='log-entry';const t=document.createElement('div');t.className='muted log-time';t.textContent=e.time||'';const m=document.createElement('code');m.textContent=e.message||'';row.append(t,m);q('logs-list').append(row)})}
   function openLogs(){renderErrors();modal.hidden=false} function closeLogs(){modal.hidden=true}
   const seriesBody=q('av1-series-body');let sortDirection={title:1,status:1};
   function sortSeries(key){if(!seriesBody)return;const direction=sortDirection[key];sortDirection[key]*=-1;const rows=Array.from(seriesBody.querySelectorAll('tr[data-title]'));rows.sort((a,b)=>{const title=a.dataset.title.localeCompare(b.dataset.title,'es',{sensitivity:'base',numeric:true});if(key==='title')return title*direction;const status=Number(a.dataset.status)-Number(b.dataset.status);return (status||title)*direction});rows.forEach(row=>seriesBody.appendChild(row));document.querySelectorAll('.table-sort').forEach(button=>{const mark=button.querySelector('span');if(mark)mark.textContent=button.dataset.sort===key?(direction===1?'↑':'↓'):'↕'})}
+  function matchingRows(filter){const rows=Array.from(document.querySelectorAll('#av1-series-body tr[data-title]'));if(filter.startsWith('status:')){const value=filter.split(':')[1];return rows.filter(r=>r.dataset.status===value)}if(filter==='local')return rows.filter(r=>r.dataset.local==='1');if(filter==='unmatched')return rows.filter(r=>r.dataset.local!=='1');return rows}
+  function openSeriesList(card){const title=card.dataset.title||'Biblioteca AV1';const rows=matchingRows(card.dataset.filter||'');q('av1-list-title').textContent=title;q('av1-list-summary').textContent=rows.length+' series';const list=q('av1-list-items');list.innerHTML='';rows.forEach(r=>{const item=document.createElement('div');item.className='series-popup-item';const href=r.dataset.url||'';if(href){const a=document.createElement('a');a.href=href;a.textContent=r.dataset.title||href;a.target='_blank';a.rel='noopener';item.appendChild(a)}else{item.textContent=r.dataset.title||''}list.appendChild(item)});if(!rows.length){const empty=document.createElement('div');empty.className='muted';empty.textContent='No hay series en esta lista.';list.appendChild(empty)}listModal.hidden=false}
+  function closeSeriesList(){listModal.hidden=true}
   document.querySelectorAll('.table-sort').forEach(button=>button.addEventListener('click',()=>sortSeries(button.dataset.sort)));
+  document.querySelectorAll('.av1-list-card').forEach(card=>{card.addEventListener('click',()=>openSeriesList(card));card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openSeriesList(card)}})});
   q('mirror-logs-button').addEventListener('click',openLogs);q('mirror-errors-card').addEventListener('click',openLogs);q('mirror-errors-card').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openLogs()}});q('logs-close').addEventListener('click',closeLogs);modal.addEventListener('click',e=>{if(e.target===modal)closeLogs()});
-  async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)return;const x=await r.json(),m=x.mirror||{};q('mirror-status').textContent=m.running?'Descargando':'En espera';q('mirror-fetched').textContent=m.fetched??0;q('mirror-sanitized').textContent=m.sanitized??0;q('mirror-errors').textContent=m.errors??0;q('mirror-finished').textContent=m.finished||'';q('mirror-current').textContent=m.current||'';errorLog=Array.isArray(m.error_log)?m.error_log:[];if(!modal.hidden)renderErrors()}catch(_){}}
+  q('av1-list-close').addEventListener('click',closeSeriesList);listModal.addEventListener('click',e=>{if(e.target===listModal)closeSeriesList()});
+  async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)return;const x=await r.json(),m=x.mirror||{};q('mirror-status').textContent=m.running?'Descargando':'En espera';q('mirror-fetched').textContent=m.fetched??0;q('mirror-sanitized').textContent=m.sanitized??0;q('mirror-errors').textContent=m.errors??0;q('mirror-finished').textContent=m.finished||'';q('mirror-current').textContent=m.current||'';q('mirror-stop-button').disabled=!m.running;errorLog=Array.isArray(m.error_log)?m.error_log:[];if(!modal.hidden)renderErrors()}catch(_){}}
   setInterval(refresh,1000);refresh();
 })();
 </script>
