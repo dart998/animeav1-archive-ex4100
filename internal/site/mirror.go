@@ -89,7 +89,7 @@ func New(baseURL, root string) (*Mirror, error) {
 }
 
 func (m *Mirror) migrateFrontendCache() {
-	marker := filepath.Join(m.root, ".frontend-cache-v043")
+	marker := filepath.Join(m.root, ".frontend-cache-v061")
 	if _, err := os.Stat(marker); err == nil { return }
 	_ = filepath.Walk(m.root, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info == nil || info.IsDir() { return nil }
@@ -214,8 +214,10 @@ func (m *Mirror) prepareForPublish(page *url.URL, body []byte, ctype string)([]b
 	if !m.isText(ctype,page.Path){return body,0}
 	text:=string(body)
 	if m.isJavaScript(ctype,page.Path){
-		text,n:=m.neutralizeBlockedURLs(text)
-		return []byte(text),n
+		// Experimento v0.6.1: conservar los bundles de AnimeAV1 byte a byte.
+		// El filtrado de scripts HTML, CSP, guard local, iframes y navegación externa
+		// siguen activos; solo dejamos de reescribir URLs dentro del JavaScript.
+		return body,0
 	}
 	n:=0
 	if m.isHTML(ctype,page.Path){text,n=m.sanitizeHTML(page,text)}
