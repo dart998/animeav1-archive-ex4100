@@ -24,7 +24,7 @@ El proyecto ya no es la prueba de concepto limitada a `mao`. Actualmente incluye
 - versión y enlace al commit exacto visibles en el panel;
 - API de estado y healthcheck;
 - imagen Docker ARMv7 construida y publicada automáticamente;
-- despliegue automático en Portainer CE mediante webhook HTTPS y tags versionados.
+- despliegue automático en Portainer CE mediante GitOps polling y tags versionados.
 
 La descarga automática de episodios todavía no constituye el flujo principal terminado. El código puede detectar proveedores y contiene una ruta de archivado con `ffmpeg`, pero la conexión completa **lista AnimeAV1 → serie → episodios → reutilización local → descarga selectiva** sigue pendiente. Por seguridad, la descarga está desactivada por defecto.
 
@@ -155,21 +155,21 @@ push a main
   -> build ARMv7
   -> publicación de :<versión> y :latest
   -> actualización del tag versionado en docker-compose.yml
-  -> POST al webhook HTTPS de Portainer
-  -> redeploy del stack
+  -> commit automático del compose
+  -> Portainer detecta el cambio mediante GitOps polling
+  -> pull y redeploy del stack
 ```
 
-El stack usa un tag versionado e inmutable, no `latest`. Portainer Community Edition no garantiza un nuevo pull de `latest` al ejecutar un webhook porque la opción **Re-pull image** pertenece a Business Edition. Al cambiar el compose a un tag nuevo, Docker debe obtener esa imagen concreta y el rollback consiste en volver al tag anterior.
+El stack usa un tag versionado e inmutable, no `latest`. Al cambiar el compose a un tag nuevo, Docker debe obtener esa imagen concreta y el rollback consiste en volver al tag anterior.
 
 El workflow necesita estos secretos del repositorio:
 
 - `DOCKERHUB_USERNAME`
 - `DOCKERHUB_TOKEN`
-- `PORTAINER_WEBHOOK_URL`
 
 Los commits automáticos que solo actualizan `docker-compose.yml` no vuelven a lanzar el build, evitando un bucle. La concurrencia también cancela builds anteriores cuando llega un commit más reciente.
 
-El webhook público debe permanecer detrás del proxy HTTPS del EX4100. Solo se expone la ruta exacta `/api/stacks/webhooks/<id>` mediante `POST`; el puerto `9000` de Portainer no se publica directamente en Internet.
+En Portainer, el stack debe estar administrado desde Git con GitOps updates/polling activado. Un intervalo de 5 minutos permite que los cambios se desplieguen normalmente pocos minutos después de que termine el build, sin exponer webhooks ni el puerto de Portainer a Internet.
 
 ## Trabajo pendiente
 
@@ -177,8 +177,7 @@ El webhook público debe permanecer detrás del proxy HTTPS del EX4100. Solo se 
 - reutilizar archivos locales a nivel de episodio, no solo a nivel de carpeta;
 - implementar controles para descargar o redescargar una serie o un episodio;
 - mostrar el progreso real de contenido local frente al total disponible;
-- completar pruebas automatizadas del parser, matching, sanitización y rutas web;
-- definir el ciclo de renovación del certificado del proxy del webhook.
+- completar pruebas automatizadas del parser, matching, sanitización y rutas web.
 
 ## Uso responsable
 
