@@ -117,8 +117,16 @@ func (s *Server) syncAV1(w http.ResponseWriter,r *http.Request){if r.Method!=htt
 
 func (s *Server) rescan(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};items,e:=libraryindex.Scan(s.libraryRoot);if e!=nil{http.Error(w,e.Error(),500);return};if e=s.db.ReplaceLibrary(items);e!=nil{http.Error(w,e.Error(),500);return};http.Redirect(w,r,"/admin",http.StatusSeeOther)}
 func (s *Server) syncMAL(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};_=s.crawl.RunMAL(context.Background());http.Redirect(w,r,"/admin",http.StatusSeeOther)}
-func (s *Server) startMirror(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};s.mirror.Start(context.Background());http.Redirect(w,r,"/admin",http.StatusSeeOther)}
+func (s *Server) startMirror(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};s.mirror.SetPrioritySeries(s.mirrorPrioritySlugs());s.mirror.Start(context.Background());http.Redirect(w,r,"/admin",http.StatusSeeOther)}
 func (s *Server) stopMirror(w http.ResponseWriter,r *http.Request){if r.Method!=http.MethodPost{http.Error(w,"method not allowed",405);return};s.mirror.Stop();http.Redirect(w,r,"/admin",http.StatusSeeOther)}
+
+func mirrorStatusPriority(status int)int{switch status{case 0:return 0;case 1:return 1;case 2:return 2;default:return 3}}
+func (s *Server) mirrorPrioritySlugs()[]string{
+	raw:=strings.TrimSpace(s.db.GetSetting("animeav1_library_json"));if raw==""{return nil}
+	var items []animeav1.Item;if err:=json.Unmarshal([]byte(raw),&items);err!=nil{return nil}
+	sort.SliceStable(items,func(i,j int)bool{pi,pj:=mirrorStatusPriority(items[i].Status),mirrorStatusPriority(items[j].Status);if pi!=pj{return pi<pj};if items[i].Status!=items[j].Status{return items[i].Status<items[j].Status};return strings.ToLower(items[i].Title)<strings.ToLower(items[j].Title)})
+	out:=make([]string,0,len(items));for _,it:=range items{if slug:=strings.TrimSpace(it.Slug);slug!=""{out=append(out,slug)}};return out
+}
 
 func (s *Server) avSeries(lib []database.LibraryItem)([]avSeries,map[int]int,int,int){var all []animeav1.Item;if raw:=strings.TrimSpace(s.db.GetSetting("animeav1_library_json"));raw!=""{_=json.Unmarshal([]byte(raw),&all)};out:=make([]avSeries,0,len(all));counts:=map[int]int{};local:=0;for _,it:=range all{counts[it.Status]++;sr:=avSeries{MediaID:string(it.MediaID),Title:it.Title,Slug:it.Slug,Status:it.StatusName(),StatusOrder:it.Status,Seen:it.Seen,Total:it.Total,Managed:it.Status==0||it.Status==2,Discovered:s.db.SeriesEpisodeCount(it.Slug)};if it.Slug!=""{sr.URL="/media/"+it.Slug};if li,kind:=matchLocal(it,lib);li!=nil{sr.LocalName=li.Name;sr.LocalFiles=li.Files;sr.LocalBytes=li.Bytes;sr.MatchType=kind;local++;if normalizeName(li.Name)!=normalizeName(it.Title){sr.RenameSuggestion=it.Title}};out=append(out,sr)};sort.Slice(out,func(i,j int)bool{if out[i].StatusOrder!=out[j].StatusOrder{return out[i].StatusOrder<out[j].StatusOrder};return strings.ToLower(out[i].Title)<strings.ToLower(out[j].Title)});return out,counts,local,len(out)-local}
 

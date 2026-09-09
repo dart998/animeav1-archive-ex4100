@@ -2,6 +2,16 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.7] - 2026-09-09
+
+### Corregido
+- Las imágenes del CDN que SvelteKit vuelve a convertir en URLs absolutas después de hidratar la página se reescriben otra vez a `/_cdn/...`, manteniendo la prioridad de la copia local y descargando desde CDN solo cuando falta el recurso.
+- El botón de actualización individual de la ficha se vuelve a insertar si la hidratación de SvelteKit reemplaza el bloque donde estaba situado.
+
+### Cambiado
+- La descarga/actualización del sitio prioriza las series según las listas de AnimeAV1 en este orden: **Viendo → Planeado → Completado → resto**.
+- La prioridad se aplica al inicio de la cola del mirror sin excluir el resto del contenido descubrible.
+
 ## [0.6.6] - 2026-09-09
 
 ### Añadido
