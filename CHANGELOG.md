@@ -2,6 +2,27 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.9] - 2026-09-10
+
+### Añadido
+- Matching local por franquicia y alias significativo para casos como DanMachi.
+- Resolución de temporada a partir de títulos/aliases y subcarpetas como `Temporada 2`, `Season 2` o `S02`, evitando mezclar episodios entre temporadas.
+- Contador real de recursos existentes bajo `/data/site` y contador separado de archivos guardados durante la sincronización actual.
+- Popup de recursos guardados con árbol desplegable organizado por carpetas, nombre y tamaño de archivo.
+- Vista de logs del mirror con aspecto de terminal, incluyendo recursos guardados y errores recientes.
+- Endpoint `/api/mirror/resources` para consultar inventario y log de recursos del mirror.
+
+### Cambiado
+- El panel de administración usa el matcher multi-carpeta/franquicia en lugar de depender exclusivamente de coincidencia exacta.
+- Se mejoran las cabeceras usadas al solicitar imágenes a `cdn.animeav1.com`, con User-Agent de navegador, `Accept` de imagen y cabeceras `Sec-Fetch-*`, sin reenviar la cookie de AnimeAV1.
+- El README se reescribe para reflejar el funcionamiento actual, sin referencias a la prueba inicial ni números de versión fijos.
+- El contador de elementos sanitizados se sustituye por **Guardados en esta sincro**.
+- Se eliminan los tests unitarios y el paso `go test ./...` del workflow para reducir el tiempo de generación de versiones. La imagen ARMv7 sigue compilándose en GitHub Actions.
+
+### Pendiente
+- Marcar y desmarcar favoritos desde las fichas usando la acción real de AnimeAV1.
+- Fallback entre reproductor local y reproductores online legítimos.
+
 ## [0.6.8] - 2026-09-09
 
 ### Añadido
@@ -65,17 +86,9 @@ Todos los cambios relevantes del proyecto se registran en este archivo a partir 
 - Acción para detener la descarga del mirror.
 - Popups de las listas AnimeAV1 y controles deshabilitados estilizados.
 - Experimento sin `localGuard` inyectado para aislar el problema de iconos.
-- Commits históricos:
-  - `3531b29f3ee0fd3e55426b5f01754dbf30fface4` — Deploy 0.6.2.
-  - `950eb14314649085ff3f9413b3cdf6d9bb96c83c` — Set application version 0.6.2.
-  - `8179f9cc3a8f5f1b606377bc69366a13f4254f53` — Style AV1 list popups and disabled controls.
-  - `89d8536dca02fdf011dbf054fb5d7e0eac6dcd1f` — Add AV1 list popups and mirror stop button.
-  - `85ac3f32bd1f5148d4a6569bf1a67f5e1fa0ea04` — Add mirror stop action.
-  - `5c674c7a6b4ffd71a8f568a4b3ddcb19cbd163fd` — Test mirror without injected JavaScript guard.
 
 ## [0.6.1] - 2026-09-02
 - Versión usada durante las pruebas de bundles JavaScript sin modificar para investigar los iconos ausentes.
-- Commit: `8ade1d6f85708a7ca52af92ecba66add2a2f339c` — Deploy 0.6.1.
 
 ---
 

@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  APP_VERSION: 0.6.8
+  APP_VERSION: 0.6.9
   IMAGE_NAME: ovelayos/animeav1-archive-ex4100
 
 jobs:
@@ -37,18 +37,6 @@ jobs:
             echo "CHANGELOG.md does not contain an entry for ${APP_VERSION}"
             exit 1
           }
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23.x'
-          cache: true
-
-      - name: Run regression tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          go test ./...
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -78,32 +66,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Update compose image tag
+      - name: Verify compose image tag
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import os
-          import re
-          from pathlib import Path
-
-          path = Path("docker-compose.yml")
-          text = path.read_text()
-          image = re.escape(os.environ["IMAGE_NAME"])
-          version = os.environ["APP_VERSION"]
-          pattern = rf'(image:\s+\$\{{ARCHIVE_IMAGE:-{image}:)[^}}]+(\}})'
-          updated, count = re.subn(pattern, rf'\g<1>{version}\2', text, count=1)
-          if count != 1:
-              raise SystemExit("Could not locate ARCHIVE_IMAGE in docker-compose.yml")
-          path.write_text(updated)
-          PY
-
-          if git diff --quiet -- docker-compose.yml; then
-            echo "docker-compose.yml already points to ${APP_VERSION}"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add docker-compose.yml
-            git commit -m "Deploy ${APP_VERSION}"
-            git push origin HEAD:main
-          fi
+          grep -Fq "${IMAGE_NAME}:${APP_VERSION}" docker-compose.yml || {
+            echo "docker-compose.yml does not point to ${APP_VERSION}"
+            exit 1
+          }

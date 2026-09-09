@@ -1,145 +1,20 @@
 <!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Administración · AnimeAV1 Archive</title>
-<link rel="icon" type="image/svg+xml" href="/admin-static/favicon.svg">
-<link rel="stylesheet" href="/admin-static/style.css">
-<link rel="stylesheet" href="/admin-static/table-sort.css">
-</head>
-<body>
-<div class="topbar">
-  <div>
-    <h1>AnimeAV1 Archive <small class="meta-inline">v{{.Version}}{{if .CommitURL}} · <a href="{{.CommitURL}}" target="_blank" rel="noopener noreferrer">commit {{.CommitShort}}</a>{{end}}</small></h1>
-    <div class="muted">Administración · EX4100 ARMv7</div>
-  </div>
-  <div class="actions"><a class="btn secondary" href="/">Abrir sitio</a></div>
-</div>
-
-<div class="grid">
-  <div class="card">
-    <h2>AnimeAV1</h2>
-    <form method="post" action="/admin/settings">
-      <label for="animeav1_session_cookie">Cookie de sesión</label>
-      <input id="animeav1_session_cookie" type="password" name="animeav1_session_cookie" value="" placeholder="session=...; PARAGLIDE_LOCALE=es" autocomplete="off">
-      <div class="actions">
-        <button type="submit">Guardar cookie</button>
-        {{if .AnimeAV1CookieConfigured}}<label class="muted"><input type="checkbox" name="clear_animeav1_cookie" value="1" style="width:auto;margin-right:6px">Eliminar cookie guardada</label>{{end}}
-      </div>
-    </form>
-    <p class="form-help">Estado: {{if .AnimeAV1CookieConfigured}}<strong class="ok">Configurada</strong>{{else}}<strong class="warn">No configurada</strong>{{end}}. La cookie solo se envía desde el NAS a animeav1.com.</p>
-    <div class="actions"><form method="post" action="/admin/sync-av1"><button type="submit">Actualizar listas AV1</button></form></div>
-    {{if .AV1SyncAt}}<p class="form-help">Última lectura de listas: <strong>{{.AV1SyncAt}}</strong></p>{{end}}
-    {{if .AV1SyncError}}<p class="bad">{{.AV1SyncError}}</p>{{end}}
-  </div>
-
-  <div class="card">
-    <h2>Biblioteca AV1</h2>
-    <div class="stat-grid">
-      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:0" data-title="Viendo"><div class="muted">Viendo</div><strong>{{.AV1Watching}}</strong></div>
-      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:1" data-title="Planeadas"><div class="muted">Planeadas</div><strong>{{.AV1Planned}}</strong></div>
-      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:2" data-title="Completadas"><div class="muted">Completadas</div><strong>{{.AV1Completed}}</strong></div>
-      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:3" data-title="En pausa"><div class="muted">En pausa</div><strong>{{.AV1OnHold}}</strong></div>
-      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:4" data-title="Abandonadas"><div class="muted">Abandonadas</div><strong>{{.AV1Dropped}}</strong></div>
-      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="local" data-title="Con contenido local"><div class="muted">Con contenido local</div><strong>{{.AV1Local}}</strong></div>
-      <div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="unmatched" data-title="Sin coincidencia local"><div class="muted">Sin coincidencia local</div><strong>{{.AV1Unmatched}}</strong></div>
-    </div>
-    <p class="form-help">Pulsa cualquier contador para ver sus series. Solo <strong>Viendo</strong> y <strong>Completado</strong> se rastrean automáticamente.</p>
-  </div>
-</div>
-
-<div class="card">
-  <h2>Mirror de AnimeAV1</h2>
-  <div class="stat-grid">
-    <div class="stat"><div class="muted">Estado</div><strong id="mirror-status">{{if .Mirror.Running}}Descargando{{else}}En espera{{end}}</strong></div>
-    <div class="stat"><div class="muted">Recursos guardados</div><strong id="mirror-fetched">{{.Mirror.Fetched}}</strong></div>
-    <div class="stat"><div class="muted">Elementos sanitizados</div><strong id="mirror-sanitized">{{.Mirror.Sanitized}}</strong></div>
-    <div class="stat stat-clickable" id="mirror-errors-card" role="button" tabindex="0" title="Ver errores"><div class="muted">Errores</div><strong id="mirror-errors">{{.Mirror.Errors}}</strong></div>
-    <div class="stat"><div class="muted">Fin</div><strong id="mirror-finished">{{.Mirror.Finished}}</strong></div>
-  </div>
-  <p class="muted mirror-current" id="mirror-current">{{.Mirror.Current}}</p>
-  <div class="actions mirror-actions">
-    <form method="post" action="/admin/mirror"><button type="submit">Descargar / actualizar sitio</button></form>
-    <form method="post" action="/admin/mirror/stop"><button id="mirror-stop-button" type="submit" class="danger" {{if not .Mirror.Running}}disabled{{end}}>Detener</button></form>
-    <button type="button" class="secondary" id="mirror-logs-button">Ver logs</button>
-  </div>
-</div>
-
-<section>
-  <div class="section-head"><div><h2>Biblioteca AnimeAV1</h2><div class="muted">Todas tus categorías. El rastreo automático procesa lotes pequeños de las series gestionadas.</div></div></div>
-  <div class="table-wrap"><table>
-    <thead><tr><th><button type="button" class="table-sort" data-sort="title">Serie AnimeAV1 <span aria-hidden="true">↕</span></button></th><th><button type="button" class="table-sort" data-sort="status">Estado <span aria-hidden="true">↕</span></button></th><th>Alcance</th><th>Progreso AV1</th><th>Episodios detectados</th><th>Contenido local</th><th>Coincidencia</th></tr></thead>
-    <tbody id="av1-series-body">
-    {{range .AV1Series}}
-      <tr data-title="{{.Title}}" data-status="{{.StatusOrder}}" data-url="{{.URL}}" data-local="{{if .LocalName}}1{{else}}0{{end}}">
-        <td>{{if .URL}}<strong><a href="{{.URL}}">{{.Title}}</a></strong>{{else}}<strong>{{.Title}}</strong>{{end}}{{if .Slug}}<small class="meta-block">{{.Slug}}</small>{{end}}</td>
-        <td>{{.Status}}</td>
-        <td>{{if .Managed}}<span class="ok">Gestionada</span>{{else}}Solo visible{{end}}</td>
-        <td>{{.Seen}} / {{.Total}}</td>
-        <td>{{.Discovered}}{{if .Total}} / {{.Total}}{{end}}<small class="meta-block">ID AV1: {{.MediaID}}</small></td>
-        <td>{{if .LocalName}}<strong class="ok">{{.LocalName}}</strong><small class="meta-block">{{.LocalFiles}} vídeos · {{bytes .LocalBytes}}</small>{{if .RenameSuggestion}}<small class="meta-block warn">Sugerencia: renombrar a «{{.RenameSuggestion}}»</small>{{end}}{{else}}<span class="warn">No detectado</span>{{end}}</td>
-        <td>{{if .MatchType}}<span class="ok">{{.MatchType}}</span>{{else}}—{{end}}</td>
-      </tr>
-    {{else}}
-      <tr><td colspan="7">Pulsa «Actualizar listas AV1». Si no aparecen entradas, revisa la cookie de sesión.</td></tr>
-    {{end}}
-    </tbody>
-  </table></div>
-</section>
-
-<section>
-  <div class="section-head"><div><h2>Biblioteca existente</h2><div class="muted">Contenido detectado en /library. Se reutilizará antes de descargar un episodio equivalente.</div></div><form method="post" action="/admin/rescan"><button class="secondary" type="submit">Reindexar /library</button></form></div>
-  <div class="table-wrap"><table><thead><tr><th>Carpeta</th><th>Archivos de vídeo</th><th>Tamaño</th></tr></thead><tbody>
-  {{range .Library}}<tr><td><strong>{{.Name}}</strong></td><td>{{.Files}}</td><td>{{bytes .Bytes}}</td></tr>{{else}}<tr><td colspan="3">Todavía no se ha indexado la biblioteca.</td></tr>{{end}}
-  </tbody></table></div>
-</section>
-
-<section>
-  <div class="section-head"><div><h2>Integraciones</h2><div class="muted">MyAnimeList deja de definir el alcance. Se conserva como integración opcional para futuras sincronizaciones cruzadas.</div></div></div>
-  <div class="grid compact-grid">
-    <div>
-      <h3>MyAnimeList</h3>
-      <form method="post" action="/admin/settings">
-        <div class="form-row"><div><label for="mal_username">Usuario público</label><input id="mal_username" type="text" name="mal_username" value="{{.MALUsername}}" autocomplete="username"></div><button type="submit" class="secondary">Guardar</button></div>
-      </form>
-      <div class="actions"><form method="post" action="/admin/sync-mal"><button type="submit" class="secondary">Sincronizar MAL</button></form></div>
-    </div>
-  </div>
-</section>
-
-<div class="modal-backdrop" id="logs-modal" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="logs-title">
-    <div class="modal-head"><h2 id="logs-title">Errores del mirror</h2><button type="button" class="secondary" id="logs-close">Cerrar</button></div>
-    <p class="muted" id="logs-summary"></p><div class="log-list" id="logs-list"></div>
-  </div>
-</div>
-
-<div class="modal-backdrop" id="av1-list-modal" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="av1-list-title">
-    <div class="modal-head"><h2 id="av1-list-title">Biblioteca AV1</h2><button type="button" class="secondary" id="av1-list-close">Cerrar</button></div>
-    <p class="muted" id="av1-list-summary"></p>
-    <div class="series-popup-list" id="av1-list-items"></div>
-  </div>
-</div>
-
-<script>
-(function(){
-  const q=id=>document.getElementById(id); let errorLog=[]; const modal=q('logs-modal'); const listModal=q('av1-list-modal');
-  function renderErrors(){q('logs-summary').textContent=errorLog.length?('Mostrando '+errorLog.length+' errores recientes.'):'No hay errores registrados.';q('logs-list').innerHTML='';errorLog.slice().reverse().forEach(e=>{const row=document.createElement('div');row.className='log-entry';const t=document.createElement('div');t.className='muted log-time';t.textContent=e.time||'';const m=document.createElement('code');m.textContent=e.message||'';row.append(t,m);q('logs-list').append(row)})}
-  function openLogs(){renderErrors();modal.hidden=false} function closeLogs(){modal.hidden=true}
-  const seriesBody=q('av1-series-body');let sortDirection={title:1,status:1};
-  function sortSeries(key){if(!seriesBody)return;const direction=sortDirection[key];sortDirection[key]*=-1;const rows=Array.from(seriesBody.querySelectorAll('tr[data-title]'));rows.sort((a,b)=>{const title=a.dataset.title.localeCompare(b.dataset.title,'es',{sensitivity:'base',numeric:true});if(key==='title')return title*direction;const status=Number(a.dataset.status)-Number(b.dataset.status);return (status||title)*direction});rows.forEach(row=>seriesBody.appendChild(row));document.querySelectorAll('.table-sort').forEach(button=>{const mark=button.querySelector('span');if(mark)mark.textContent=button.dataset.sort===key?(direction===1?'↑':'↓'):'↕'})}
-  function matchingRows(filter){const rows=Array.from(document.querySelectorAll('#av1-series-body tr[data-title]'));if(filter.startsWith('status:')){const value=filter.split(':')[1];return rows.filter(r=>r.dataset.status===value)}if(filter==='local')return rows.filter(r=>r.dataset.local==='1');if(filter==='unmatched')return rows.filter(r=>r.dataset.local!=='1');return rows}
-  function openSeriesList(card){const title=card.dataset.title||'Biblioteca AV1';const rows=matchingRows(card.dataset.filter||'');q('av1-list-title').textContent=title;q('av1-list-summary').textContent=rows.length+' series';const list=q('av1-list-items');list.innerHTML='';rows.forEach(r=>{const item=document.createElement('div');item.className='series-popup-item';const href=r.dataset.url||'';if(href){const a=document.createElement('a');a.href=href;a.textContent=r.dataset.title||href;a.target='_blank';a.rel='noopener';item.appendChild(a)}else{item.textContent=r.dataset.title||''}list.appendChild(item)});if(!rows.length){const empty=document.createElement('div');empty.className='muted';empty.textContent='No hay series en esta lista.';list.appendChild(empty)}listModal.hidden=false}
-  function closeSeriesList(){listModal.hidden=true}
-  document.querySelectorAll('.table-sort').forEach(button=>button.addEventListener('click',()=>sortSeries(button.dataset.sort)));
-  document.querySelectorAll('.av1-list-card').forEach(card=>{card.addEventListener('click',()=>openSeriesList(card));card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openSeriesList(card)}})});
-  q('mirror-logs-button').addEventListener('click',openLogs);q('mirror-errors-card').addEventListener('click',openLogs);q('mirror-errors-card').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openLogs()}});q('logs-close').addEventListener('click',closeLogs);modal.addEventListener('click',e=>{if(e.target===modal)closeLogs()});
-  q('av1-list-close').addEventListener('click',closeSeriesList);listModal.addEventListener('click',e=>{if(e.target===listModal)closeSeriesList()});
-  async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)return;const x=await r.json(),m=x.mirror||{};q('mirror-status').textContent=m.running?'Descargando':'En espera';q('mirror-fetched').textContent=m.fetched??0;q('mirror-sanitized').textContent=m.sanitized??0;q('mirror-errors').textContent=m.errors??0;q('mirror-finished').textContent=m.finished||'';q('mirror-current').textContent=m.current||'';q('mirror-stop-button').disabled=!m.running;errorLog=Array.isArray(m.error_log)?m.error_log:[];if(!modal.hidden)renderErrors()}catch(_){}}
-  setInterval(refresh,1000);refresh();
-})();
-</script>
-</body>
-</html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Administración · AnimeAV1 Archive</title><link rel="icon" type="image/svg+xml" href="/admin-static/favicon.svg"><link rel="stylesheet" href="/admin-static/style.css"><link rel="stylesheet" href="/admin-static/table-sort.css"><style>.terminal{background:#080b0d;color:#d8f7d8;font:13px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;padding:14px;border-radius:8px;max-height:65vh;overflow:auto;white-space:pre-wrap}.tree{font:13px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;max-height:65vh;overflow:auto}.tree details{margin-left:14px}.tree summary{cursor:pointer}.tree-file{margin-left:28px;color:#c9cbd3}.modal.wide{max-width:1000px;width:min(94vw,1000px)}</style></head><body>
+<div class="topbar"><div><h1>AnimeAV1 Archive <small class="meta-inline">v{{.Version}}{{if .CommitURL}} · <a href="{{.CommitURL}}" target="_blank" rel="noopener noreferrer">commit {{.CommitShort}}</a>{{end}}</small></h1><div class="muted">Administración · EX4100 ARMv7</div></div><div class="actions"><a class="btn secondary" href="/">Abrir sitio</a></div></div>
+<div class="grid"><div class="card"><h2>AnimeAV1</h2><form method="post" action="/admin/settings"><label for="animeav1_session_cookie">Cookie de sesión</label><input id="animeav1_session_cookie" type="password" name="animeav1_session_cookie" value="" placeholder="session=...; PARAGLIDE_LOCALE=es" autocomplete="off"><div class="actions"><button type="submit">Guardar cookie</button>{{if .AnimeAV1CookieConfigured}}<label class="muted"><input type="checkbox" name="clear_animeav1_cookie" value="1" style="width:auto;margin-right:6px">Eliminar cookie guardada</label>{{end}}</div></form><p class="form-help">Estado: {{if .AnimeAV1CookieConfigured}}<strong class="ok">Configurada</strong>{{else}}<strong class="warn">No configurada</strong>{{end}}.</p><div class="actions"><form method="post" action="/admin/sync-av1"><button type="submit">Actualizar listas AV1</button></form></div>{{if .AV1SyncAt}}<p class="form-help">Última lectura: <strong>{{.AV1SyncAt}}</strong></p>{{end}}{{if .AV1SyncError}}<p class="bad">{{.AV1SyncError}}</p>{{end}}</div>
+<div class="card"><h2>Biblioteca AV1</h2><div class="stat-grid"><div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:0" data-title="Viendo"><div class="muted">Viendo</div><strong>{{.AV1Watching}}</strong></div><div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:1" data-title="Planeadas"><div class="muted">Planeadas</div><strong>{{.AV1Planned}}</strong></div><div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:2" data-title="Completadas"><div class="muted">Completadas</div><strong>{{.AV1Completed}}</strong></div><div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:3" data-title="En pausa"><div class="muted">En pausa</div><strong>{{.AV1OnHold}}</strong></div><div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="status:4" data-title="Abandonadas"><div class="muted">Abandonadas</div><strong>{{.AV1Dropped}}</strong></div><div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="local" data-title="Con contenido local"><div class="muted">Con contenido local</div><strong>{{.AV1Local}}</strong></div><div class="stat stat-clickable av1-list-card" role="button" tabindex="0" data-filter="unmatched" data-title="Sin coincidencia local"><div class="muted">Sin coincidencia local</div><strong>{{.AV1Unmatched}}</strong></div></div></div></div>
+<div class="card"><h2>Mirror de AnimeAV1</h2><div class="stat-grid"><div class="stat"><div class="muted">Estado</div><strong id="mirror-status">{{if .Mirror.Running}}Descargando{{else}}En espera{{end}}</strong></div><div class="stat stat-clickable" id="mirror-resources-card" role="button" tabindex="0" title="Ver recursos"><div class="muted">Recursos guardados</div><strong id="mirror-resources">…</strong></div><div class="stat stat-clickable" id="mirror-saved-card" role="button" tabindex="0" title="Ver log de esta sincronización"><div class="muted">Guardados en esta sincro</div><strong id="mirror-saved">…</strong></div><div class="stat stat-clickable" id="mirror-errors-card" role="button" tabindex="0" title="Ver logs"><div class="muted">Errores</div><strong id="mirror-errors">{{.Mirror.Errors}}</strong></div><div class="stat"><div class="muted">Fin</div><strong id="mirror-finished">{{.Mirror.Finished}}</strong></div></div><p class="muted mirror-current" id="mirror-current">{{.Mirror.Current}}</p><div class="actions mirror-actions"><form method="post" action="/admin/mirror"><button type="submit">Descargar / actualizar sitio</button></form><form method="post" action="/admin/mirror/stop"><button id="mirror-stop-button" type="submit" class="danger" {{if not .Mirror.Running}}disabled{{end}}>Detener</button></form><button type="button" class="secondary" id="mirror-logs-button">Ver logs</button></div></div>
+<section><div class="section-head"><div><h2>Biblioteca AnimeAV1</h2><div class="muted">Coincidencia local por título, alias, franquicia y temporada.</div></div></div><div class="table-wrap"><table><thead><tr><th>Serie AnimeAV1</th><th>Estado</th><th>Alcance</th><th>Progreso AV1</th><th>Episodios detectados</th><th>Contenido local</th><th>Coincidencia</th></tr></thead><tbody id="av1-series-body">{{range .AV1Series}}<tr data-title="{{.Title}}" data-status="{{.StatusOrder}}" data-url="{{.URL}}" data-local="{{if .LocalName}}1{{else}}0{{end}}"><td>{{if .URL}}<strong><a href="{{.URL}}">{{.Title}}</a></strong>{{else}}<strong>{{.Title}}</strong>{{end}}{{if .Slug}}<small class="meta-block">{{.Slug}}</small>{{end}}</td><td>{{.Status}}</td><td>{{if .Managed}}<span class="ok">Gestionada</span>{{else}}Solo visible{{end}}</td><td>{{.Seen}} / {{.Total}}</td><td>{{.Discovered}}{{if .Total}} / {{.Total}}{{end}}<small class="meta-block">ID AV1: {{.MediaID}}</small></td><td>{{if .LocalName}}<strong class="ok">{{.LocalName}}</strong><small class="meta-block">{{.LocalFiles}} vídeos · {{bytes .LocalBytes}}</small>{{else}}<span class="warn">No detectado</span>{{end}}</td><td>{{if .MatchType}}<span class="ok">{{.MatchType}}</span>{{else}}—{{end}}</td></tr>{{else}}<tr><td colspan="7">Pulsa «Actualizar listas AV1».</td></tr>{{end}}</tbody></table></div></section>
+<section><div class="section-head"><div><h2>Biblioteca existente</h2><div class="muted">Contenido detectado en /library.</div></div><form method="post" action="/admin/rescan"><button class="secondary" type="submit">Reindexar /library</button></form></div><div class="table-wrap"><table><thead><tr><th>Carpeta</th><th>Archivos de vídeo</th><th>Tamaño</th></tr></thead><tbody>{{range .Library}}<tr><td><strong>{{.Name}}</strong></td><td>{{.Files}}</td><td>{{bytes .Bytes}}</td></tr>{{else}}<tr><td colspan="3">Todavía no se ha indexado la biblioteca.</td></tr>{{end}}</tbody></table></div></section>
+<section><div class="section-head"><div><h2>Integraciones</h2></div></div><div class="grid compact-grid"><div><h3>MyAnimeList</h3><form method="post" action="/admin/settings"><div class="form-row"><div><label for="mal_username">Usuario público</label><input id="mal_username" type="text" name="mal_username" value="{{.MALUsername}}" autocomplete="username"></div><button type="submit" class="secondary">Guardar</button></div></form><div class="actions"><form method="post" action="/admin/sync-mal"><button type="submit" class="secondary">Sincronizar MAL</button></form></div></div></div></section>
+<div class="modal-backdrop" id="logs-modal" hidden><div class="modal wide" role="dialog" aria-modal="true"><div class="modal-head"><h2>Log del mirror</h2><div class="actions"><button type="button" class="secondary" id="logs-copy">Copiar</button><button type="button" class="secondary" id="logs-close">Cerrar</button></div></div><div class="terminal" id="terminal-log"></div></div></div>
+<div class="modal-backdrop" id="resources-modal" hidden><div class="modal wide" role="dialog" aria-modal="true"><div class="modal-head"><h2>Recursos guardados</h2><button type="button" class="secondary" id="resources-close">Cerrar</button></div><p class="muted" id="resources-summary"></p><div class="tree" id="resources-tree"></div></div></div>
+<div class="modal-backdrop" id="av1-list-modal" hidden><div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><h2 id="av1-list-title">Biblioteca AV1</h2><button type="button" class="secondary" id="av1-list-close">Cerrar</button></div><p class="muted" id="av1-list-summary"></p><div class="series-popup-list" id="av1-list-items"></div></div></div>
+<script>(function(){const q=id=>document.getElementById(id),logsModal=q('logs-modal'),resModal=q('resources-modal'),listModal=q('av1-list-modal');let lastResources=null;
+function renderTree(node,parent){(node.children||[]).forEach(ch=>{const d=document.createElement('details'),s=document.createElement('summary');s.textContent=ch.name+' ('+ch.count+')';d.appendChild(s);renderTree(ch,d);parent.appendChild(d)});(node.files||[]).forEach(f=>{const x=document.createElement('div');x.className='tree-file';x.textContent=f.name+' · '+formatBytes(f.bytes);parent.appendChild(x)})}function formatBytes(n){if(n>1073741824)return(n/1073741824).toFixed(1)+' GB';if(n>1048576)return(n/1048576).toFixed(1)+' MB';if(n>1024)return(n/1024).toFixed(1)+' KB';return n+' B'}
+async function resources(){const r=await fetch('/api/mirror/resources',{cache:'no-store'});if(!r.ok)throw new Error(await r.text());lastResources=await r.json();q('mirror-resources').textContent=lastResources.total??0;q('mirror-saved').textContent=lastResources.saved_this_sync??0;return lastResources}
+function logText(x){const head=['Estado: '+(x.running?'descargando':'en espera'),'Descargados: '+(x.fetched??0)+'  Reutilizados: '+(x.reused??0)+'  Errores: '+(x.errors??0),''];return head.concat((x.log||[]).map(e=>'['+(e.time||'')+'] '+String(e.level||'').padEnd(4,' ')+' '+(e.message||''))).join('\n')}
+async function openLogs(){const x=await resources();q('terminal-log').textContent=logText(x);logsModal.hidden=false;q('terminal-log').scrollTop=q('terminal-log').scrollHeight}async function openResources(){const x=await resources();q('resources-summary').textContent=x.total+' archivos en /data/site';const t=q('resources-tree');t.innerHTML='';renderTree(x.tree,t);resModal.hidden=false}
+q('mirror-logs-button').onclick=openLogs;q('mirror-errors-card').onclick=openLogs;q('mirror-saved-card').onclick=openLogs;q('mirror-resources-card').onclick=openResources;q('logs-close').onclick=()=>logsModal.hidden=true;q('resources-close').onclick=()=>resModal.hidden=true;q('logs-copy').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(q('terminal-log').textContent);logsModal.onclick=e=>{if(e.target===logsModal)logsModal.hidden=true};resModal.onclick=e=>{if(e.target===resModal)resModal.hidden=true};
+function matchingRows(filter){const rows=Array.from(document.querySelectorAll('#av1-series-body tr[data-title]'));if(filter.startsWith('status:')){const v=filter.split(':')[1];return rows.filter(r=>r.dataset.status===v)}if(filter==='local')return rows.filter(r=>r.dataset.local==='1');if(filter==='unmatched')return rows.filter(r=>r.dataset.local!=='1');return rows}function openSeries(card){const rows=matchingRows(card.dataset.filter||'');q('av1-list-title').textContent=card.dataset.title||'Biblioteca AV1';q('av1-list-summary').textContent=rows.length+' series';const l=q('av1-list-items');l.innerHTML='';rows.forEach(r=>{const d=document.createElement('div');d.className='series-popup-item';const a=document.createElement('a');a.textContent=r.dataset.title;a.href=r.dataset.url||'#';d.appendChild(a);l.appendChild(d)});listModal.hidden=false}document.querySelectorAll('.av1-list-card').forEach(c=>c.onclick=()=>openSeries(c));q('av1-list-close').onclick=()=>listModal.hidden=true;
+async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});if(r.ok){const x=await r.json(),m=x.mirror||{};q('mirror-status').textContent=m.running?'Descargando':'En espera';q('mirror-errors').textContent=m.errors??0;q('mirror-finished').textContent=m.finished||'';q('mirror-current').textContent=m.current||'';q('mirror-stop-button').disabled=!m.running}await resources();if(!logsModal.hidden)q('terminal-log').textContent=logText(lastResources)}catch(_){}}setInterval(refresh,5000);refresh();})();</script></body></html>
