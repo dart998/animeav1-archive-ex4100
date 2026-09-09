@@ -47,27 +47,29 @@ type Mirror struct {
 }
 
 var (
-	attrRE       = regexp.MustCompile(`(?i)(?:href|src|poster|action|data-src|data-lazy-src|xlink:href)=["']([^"'#]+)["']`)
-	srcsetRE     = regexp.MustCompile(`(?i)srcset=["']([^"']+)["']`)
-	cssURLRE     = regexp.MustCompile(`(?i)url\(\s*["']?([^"')]+)`)
-	importRE     = regexp.MustCompile(`(?i)(?:from\s*|import\s*\(\s*)["']([^"']+)["']`)
-	scriptRE     = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script\s*>`)
-	scriptSrcRE  = regexp.MustCompile(`(?i)\bsrc\s*=\s*["']([^"']+)["']`)
-	iframeRE     = regexp.MustCompile(`(?is)<iframe\b([^>]*)>.*?</iframe\s*>|<iframe\b([^>]*)/?>`)
-	iframeSrcRE  = regexp.MustCompile(`(?i)\bsrc\s*=\s*["']([^"']+)["']`)
-	eventDQRE    = regexp.MustCompile(`(?is)\s+on[a-z0-9_-]+\s*=\s*"([^"]*)"`)
-	eventSQRE    = regexp.MustCompile(`(?is)\s+on[a-z0-9_-]+\s*=\s*'([^']*)'`)
-	navDQRE      = regexp.MustCompile(`(?is)\b(href|action|formaction)\s*=\s*"([^"]*)"`)
-	navSQRE      = regexp.MustCompile(`(?is)\b(href|action|formaction)\s*=\s*'([^']*)'`)
-	baseTagRE    = regexp.MustCompile(`(?is)<base\b[^>]*>`)
-	headOpenRE   = regexp.MustCompile(`(?i)<head\b[^>]*>`)
-	absoluteURL  = regexp.MustCompile(`(?i)https?://[a-z0-9._:-]+[^\s"'<>)]*`)
-	popupJS      = regexp.MustCompile(`(?i)(window\.open\s*\(|popunder|pop[-_ ]?up|runative[-.]syndicate)`)
-	badAdDomain  = regexp.MustCompile(`(?i)(runative-syndicate\.com|runative\.com|syndication|popads|onclicka|adsterra)`)
+	attrRE        = regexp.MustCompile(`(?i)(?:href|src|poster|action|data-src|data-lazy-src|xlink:href)=["']([^"'#]+)["']`)
+	srcsetRE      = regexp.MustCompile(`(?i)srcset=["']([^"']+)["']`)
+	cssURLRE      = regexp.MustCompile(`(?i)url\(\s*["']?([^"')]+)`)
+	importRE      = regexp.MustCompile(`(?i)(?:from\s*|import\s*\(\s*)["']([^"']+)["']`)
+	scriptRE      = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script\s*>`)
+	scriptSrcRE   = regexp.MustCompile(`(?i)\bsrc\s*=\s*["']([^"']+)["']`)
+	iframeRE      = regexp.MustCompile(`(?is)<iframe\b([^>]*)>.*?</iframe\s*>|<iframe\b([^>]*)/?>`)
+	iframeSrcRE   = regexp.MustCompile(`(?i)\bsrc\s*=\s*["']([^"']+)["']`)
+	eventDQRE     = regexp.MustCompile(`(?is)\s+on[a-z0-9_-]+\s*=\s*"([^"]*)"`)
+	eventSQRE     = regexp.MustCompile(`(?is)\s+on[a-z0-9_-]+\s*=\s*'([^']*)'`)
+	navDQRE       = regexp.MustCompile(`(?is)\b(href|action|formaction)\s*=\s*"([^"]*)"`)
+	navSQRE       = regexp.MustCompile(`(?is)\b(href|action|formaction)\s*=\s*'([^']*)'`)
+	baseTagRE     = regexp.MustCompile(`(?is)<base\b[^>]*>`)
+	headOpenRE    = regexp.MustCompile(`(?i)<head\b[^>]*>`)
+	absoluteURL   = regexp.MustCompile(`(?i)https?://[a-z0-9._:-]+[^\s"'<>)]*`)
+	popupJS       = regexp.MustCompile(`(?i)(window\.open\s*\(|popunder|pop[-_ ]?up|runative[-.]syndicate)`)
+	badAdDomain   = regexp.MustCompile(`(?i)(runative-syndicate\.com|runative\.com|syndication|popads|onclicka|adsterra)`)
+	seriesPageRE  = regexp.MustCompile(`^/media/[^/]+/?$`)
 	episodePageRE = regexp.MustCompile(`^/media/[^/]+/\d+/?$`)
 )
 
 const localCSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; frame-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'; worker-src 'self' blob:">`
+const seriesRefreshUI = `<script>(function(){function addMirrorRefresh(){try{if(!/^\/media\/[^/]+\/?$/.test(location.pathname)||document.getElementById('mirror-refresh-series'))return;var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a'));var share=nodes.find(function(el){var t=(el.textContent||'').trim();var a=(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('title')||'');return /compartir/i.test(t)||/compartir|share/i.test(a)});if(!share)return;var b=document.createElement('button');b.id='mirror-refresh-series';b.type='button';b.className=share.className;b.title='Actualizar esta ficha desde AnimeAV1';b.setAttribute('aria-label','Actualizar esta ficha desde AnimeAV1');b.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"/></svg>';b.style.marginLeft='4px';b.addEventListener('click',async function(){if(b.disabled)return;b.disabled=true;b.classList.add('mirror-refreshing');try{var r=await fetch('/__mirror/refresh?path='+encodeURIComponent(location.pathname),{method:'POST',headers:{'X-Mirror-Action':'refresh-series'}});if(!r.ok)throw new Error(await r.text());location.reload()}catch(e){console.error(e);b.disabled=false;b.classList.remove('mirror-refreshing');alert('No se pudo actualizar la ficha: '+e.message)}});share.insertAdjacentElement('afterend',b)}catch(e){console.error(e)}}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',addMirrorRefresh,{once:true})}else{addMirrorRefresh()}})();</script><style>#mirror-refresh-series{display:inline-flex;align-items:center;justify-content:center}.mirror-refreshing svg{animation:mirror-spin .8s linear infinite}@keyframes mirror-spin{to{transform:rotate(360deg)}}</style>`
 
 func New(baseURL, root string) (*Mirror, error) {
 	u, err := url.Parse(baseURL)
@@ -110,6 +112,7 @@ func (m *Mirror) Handler() http.Handler { return http.HandlerFunc(m.serveHTTP) }
 
 func (m *Mirror) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path=="/_blocked_external" { w.WriteHeader(http.StatusNoContent); return }
+	if r.URL.Path=="/__mirror/refresh" { m.refreshSeries(w,r); return }
 	if r.Method!=http.MethodGet && r.Method!=http.MethodHead { http.Error(w,"method not allowed",http.StatusMethodNotAllowed); return }
 	localPath,upstream,ok:=m.requestPaths(r.URL); if !ok { http.NotFound(w,r); return }
 	cachedFile,cached:=existingFile(localPath); cachedType:=""; if cached { cachedType=mime.TypeByExtension(filepath.Ext(cachedFile)) }
@@ -121,6 +124,14 @@ func (m *Mirror) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	body,cleaned:=m.prepareForPublish(upstream,body,ctype); if cleaned>0 { m.addSanitized(cleaned) }
 	if r.URL.RawQuery=="" && !strings.Contains(strings.ToLower(ctype),"application/json") { _=m.save(m.root,upstream,body,ctype) }
 	if ctype!="" { w.Header().Set("Content-Type",ctype) }; w.Header().Set("Cache-Control","no-cache, no-store, must-revalidate"); if r.Method!=http.MethodHead { _,_=w.Write(body) }
+}
+
+func (m *Mirror) refreshSeries(w http.ResponseWriter,r *http.Request){
+	if r.Method!=http.MethodPost{http.Error(w,"method not allowed",http.StatusMethodNotAllowed);return}
+	p:=strings.TrimSpace(r.URL.Query().Get("path"));if !seriesPageRE.MatchString(p){http.Error(w,"invalid series path",http.StatusBadRequest);return}
+	u:=&url.URL{Scheme:m.base.Scheme,Host:m.base.Host,Path:p};body,ctype,err:=m.fetch(r.Context(),u.String());if err!=nil{m.recordError(err);http.Error(w,err.Error(),http.StatusBadGateway);return}
+	body,n:=m.prepareForPublish(u,body,ctype);if n>0{m.addSanitized(n)};if err=m.save(m.root,u,body,ctype);err!=nil{m.recordError(err);http.Error(w,err.Error(),http.StatusInternalServerError);return}
+	m.mu.Lock();m.state.Fetched++;m.state.Current="";m.mu.Unlock();w.Header().Set("Cache-Control","no-store");w.WriteHeader(http.StatusNoContent)
 }
 
 func (m *Mirror) requestPaths(req *url.URL) (string,*url.URL,bool) {
@@ -170,7 +181,7 @@ func (m *Mirror) sanitizeHTML(page *url.URL,text string)(string,int){
 	removed:=0;text=baseTagRE.ReplaceAllStringFunc(text,func(string)string{removed++;return ""})
 	text=iframeRE.ReplaceAllStringFunc(text,func(block string)string{attrs:=block;if p:=iframeRE.FindStringSubmatch(block);len(p)>1{attrs=p[1]+p[2]};sm:=iframeSrcRE.FindStringSubmatch(attrs);if len(sm)<2{return block};r,e:=url.Parse(strings.TrimSpace(sm[1]));if e!=nil{return block};u:=page.ResolveReference(r);if m.blockedURL(u)||(u.Scheme=="http"||u.Scheme=="https")&&!m.allowedHost(u.Host){removed++;return `<div class="mirror-player-blocked">Reproductor externo no disponible en la copia local</div>`};return block})
 	text=scriptRE.ReplaceAllStringFunc(text,func(block string)string{parts:=scriptRE.FindStringSubmatch(block);if len(parts)<3{return block};attrs,body:=parts[1],parts[2];if sm:=scriptSrcRE.FindStringSubmatch(attrs);len(sm)>1{r,e:=url.Parse(strings.TrimSpace(sm[1]));if e!=nil{removed++;return ""};u:=page.ResolveReference(r);if m.blockedURL(u)||((u.Scheme=="http"||u.Scheme=="https")&&!m.allowedHost(u.Host)){removed++;return ""}};if popupJS.MatchString(body)||badAdDomain.MatchString(body){removed++;return ""};return block})
-	text=sanitizeEventAttrs(text,eventDQRE,&removed);text=sanitizeEventAttrs(text,eventSQRE,&removed);text=m.sanitizeNavAttrs(page,text,navDQRE,'"',&removed);text=m.sanitizeNavAttrs(page,text,navSQRE,'\'',&removed);inject:=localCSP;if headOpenRE.MatchString(text){text=headOpenRE.ReplaceAllString(text,`${0}`+inject)}else{text=inject+text};return text,removed
+	text=sanitizeEventAttrs(text,eventDQRE,&removed);text=sanitizeEventAttrs(text,eventSQRE,&removed);text=m.sanitizeNavAttrs(page,text,navDQRE,'"',&removed);text=m.sanitizeNavAttrs(page,text,navSQRE,'\'',&removed);inject:=localCSP;if seriesPageRE.MatchString(page.Path){inject+=seriesRefreshUI};if headOpenRE.MatchString(text){text=headOpenRE.ReplaceAllString(text,`${0}`+inject)}else{text=inject+text};return text,removed
 }
 
 func sanitizeEventAttrs(text string,re *regexp.Regexp,removed *int)string{return re.ReplaceAllStringFunc(text,func(attr string)string{m:=re.FindStringSubmatch(attr);if len(m)>1&&(popupJS.MatchString(m[1])||badAdDomain.MatchString(m[1])){(*removed)++;return ""};return attr})}
