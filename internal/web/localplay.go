@@ -88,12 +88,21 @@ func (s *Server) findLocalEpisodeFile(slug string,episode int)(string,animeav1.I
 	items:=s.cachedAV1();var item *animeav1.Item
 	for i:=range items{if items[i].Slug==slug{item=&items[i];break}}
 	if item==nil{return "",animeav1.Item{},fmt.Errorf("serie no encontrada")}
-	lib,err:=s.db.Library();if err!=nil{return "",*item,err};li,_:=matchLocal(*item,lib);if li==nil{return "",*item,fmt.Errorf("serie sin carpeta local asociada")}
-	root:=filepath.Clean(li.Path);var strong,weak []string
-	explicit:=regexp.MustCompile(fmt.Sprintf(`(?i)(?:^|[^0-9])(?:s[0-9]{1,2}e|ep(?:isode)?[ ._-]*|e[ ._-]*)0*%d(?:[^0-9]|$)`,episode))
-	standalone:=regexp.MustCompile(fmt.Sprintf(`(?:^|[^0-9])0*%d(?:[^0-9]|$)`,episode))
-	_ = filepath.Walk(root,func(path string,info os.FileInfo,e error)error{if e!=nil||info==nil||info.IsDir(){return nil};ext:=strings.ToLower(filepath.Ext(info.Name()));switch ext{case ".mkv",".mp4",".avi",".webm",".m4v",".mov":default:return nil};base:=strings.TrimSuffix(info.Name(),filepath.Ext(info.Name()));if explicit.MatchString(base){strong=append(strong,path)}else if standalone.MatchString(base){weak=append(weak,path)};return nil})
-	pick:=strong;if len(pick)==0{pick=weak};if len(pick)==0{return "",*item,fmt.Errorf("no se encontro el episodio %d en %s",episode,li.Name)};sort.Strings(pick);return pick[0],*item,nil
+	lib,err:=s.db.Library();if err!=nil{return "",*item,err}
+	folders:=localFolderCandidates(*item,lib);if len(folders)==0{return "",*item,fmt.Errorf("serie sin carpetas locales asociadas")}
+	var files []episodeFileCandidate
+	for _,folder:=range folders{
+		root:=filepath.Clean(folder.Item.Path)
+		_ = filepath.Walk(root,func(path string,info os.FileInfo,e error)error{
+			if e!=nil||info==nil||info.IsDir(){return nil}
+			ext:=strings.ToLower(filepath.Ext(info.Name()));switch ext{case ".mkv",".mp4",".avi",".webm",".m4v",".mov":default:return nil}
+			fr:=episodeFileRank(info.Name(),item.MediaID,episode);if fr<99{files=append(files,episodeFileCandidate{Path:path,FolderRank:folder.Rank,FileRank:fr})}
+			return nil
+		})
+	}
+	if len(files)==0{return "",*item,fmt.Errorf("no se encontro el episodio %d en las carpetas relacionadas con %s",episode,item.Title)}
+	sort.SliceStable(files,func(i,j int)bool{if files[i].FileRank!=files[j].FileRank{return files[i].FileRank<files[j].FileRank};if files[i].FolderRank!=files[j].FolderRank{return files[i].FolderRank<files[j].FolderRank};return files[i].Path<files[j].Path})
+	return files[0].Path,*item,nil
 }
 
 const localEpisodeBridge = `<script>(function(){

@@ -2,6 +2,23 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.8] - 2026-09-09
+
+### Añadido
+- Prioridad efectiva `seed > caché > origen` para recursos estáticos conocidos. Al arrancar, los CSS/JS/SVG/imágenes/fuentes existentes en `/data/seed` se promocionan sobre `/data/site`; HTML y JSON nunca se sobrescriben desde el seed.
+- Detección local multi-carpeta por serie para agrupar temporadas, Parts, OVAs/OADs/especiales relacionados sin mover ni renombrar archivos.
+- Coincidencia fuerte de episodios descargados de AnimeAV1 mediante `<mediaId>_<episodio>_...`, por delante de patrones genéricos como `S01E05`, `Ep05` o números aislados.
+- Tests de regresión para prioridad del seed, reescritura CDN, namespaces SVG, parche post-hidratación, prioridad de listas y matching multi-carpeta/mediaId.
+- El workflow ejecuta `go test ./...` antes de QEMU/build/push; si falla un test, no se publica imagen Docker.
+
+### Cambiado
+- La reproducción local busca recursivamente en todas las carpetas relacionadas con la serie y prioriza primero coincidencias por `mediaId`, después patrones explícitos de episodio y finalmente números aislados.
+- Una carpeta que coincide exactamente con el título/alias de AnimeAV1 tiene prioridad sobre carpetas relacionadas cuando el patrón de archivo tiene la misma calidad.
+
+### Seguridad y compatibilidad
+- El seed solo promociona extensiones estáticas conocidas y deja las fichas HTML dinámicas bajo control de AnimeAV1/mirror.
+- Se mantiene la reescritura post-hidratación del CDN a `/_cdn/...`, evitando que las imágenes restauradas por SvelteKit salten la caché local.
+
 ## [0.6.7] - 2026-09-09
 
 ### Corregido
@@ -19,11 +36,8 @@ Todos los cambios relevantes del proyecto se registran en este archivo a partir 
 - Endpoint interno `POST /__mirror/refresh?path=/media/<slug>` para refrescar únicamente la ficha seleccionada sin lanzar una sincronización completa del mirror.
 - Registro de cambios histórico del proyecto en `CHANGELOG.md`.
 
-### Pendiente de la siguiente iteración
-- Prioridad `seed > caché > origen` para recursos estáticos presentes en `/data/seed`.
-- Dejar CSS y JS funcionales prácticamente byte a byte y mover el bloqueo de publicidad al nivel de origen/CSP.
+### Pendiente
 - Fallback entre reproductor local y reproductor online cuando no exista copia local del episodio.
-- Mejorar la detección de episodios locales con `<mediaId>_<episodio>_SUB.*` como coincidencia fuerte cuando el ID corresponda a AnimeAV1.
 
 ## [0.6.5] - 2026-09-09
 - Reproducción de episodios locales desde la biblioteca montada en `/library`.

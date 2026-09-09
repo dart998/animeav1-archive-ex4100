@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  APP_VERSION: 0.6.7
+  APP_VERSION: 0.6.8
   IMAGE_NAME: ovelayos/animeav1-archive-ex4100
 
 jobs:
@@ -37,6 +37,18 @@ jobs:
             echo "CHANGELOG.md does not contain an entry for ${APP_VERSION}"
             exit 1
           }
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: true
+
+      - name: Run regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./...
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
