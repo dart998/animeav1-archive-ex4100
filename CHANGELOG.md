@@ -2,6 +2,24 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.14] - 2026-09-12
+
+### Añadido
+- Notificaciones de episodios nuevos para series en estado **Viendo**: el crawler crea una notificación cuando descubre episodios posteriores al último conjunto conocido, cada aviso enlaza directamente al episodio y la campana nativa muestra contador, iluminación y animación de tintineo mientras haya avisos sin leer.
+- El botón nativo **Leer todo** marca todas las notificaciones como leídas. Las leídas se conservan 24 horas y después se eliminan automáticamente; las no leídas no caducan.
+- Si existen episodios locales en un formato que el navegador no puede reproducir, al iniciar una descarga se ofrece volver a descargarlos. La copia existente nunca se borra ni se sobrescribe.
+
+### Corregido
+- Cerrar el modal de descarga ya no hace que vuelva a abrirse por el polling de progreso.
+- El botón de descarga deja de girar: durante una descarga la flecha baja repetidamente hacia la línea mientras la base permanece fija.
+- Los botones añadidos por el mirror dejan de usar `title`, evitando el segundo tooltip negro retardado del navegador.
+- Después de completar cada episodio descargado se reindexa inmediatamente `/library`, de forma que pasa a estar disponible como copia local sin esperar a que termine toda la serie.
+- Si el nombre de destino de una nueva descarga ya existe se crea un nombre alternativo, sin sobrescribir archivos existentes.
+
+### Interfaz
+- Se elimina el enlace a Discord del encabezado.
+- Se eliminan del pie los enlaces **Términos y condiciones** y **Política de privacidad**.
+
 ## [0.6.13] - 2026-09-11
 
 ### Corregido
