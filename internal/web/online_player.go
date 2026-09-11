@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,33 +20,45 @@ type onlinePlayer struct {
 
 var embedRE = regexp.MustCompile(`server:"([^"]+)",url:"([^"]+)"`)
 
-func blockedMirrorProvider(server string) bool {
-	switch strings.ToLower(strings.TrimSpace(server)) {
-	case "hls", "upnshare":
-		return true
-	default:
+func isStreamingSource(server, raw string) bool {
+	name := strings.ToLower(strings.TrimSpace(server))
+	if name == "hls" || name == "upnshare" || name == "transferit" || name == "transfer.it" || strings.Contains(name, "1fichier") {
 		return false
 	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	path := strings.ToLower(u.Path)
+	if strings.Contains(host, "transfer.it") || strings.Contains(host, "1fichier.com") {
+		return false
+	}
+	// MEGA publica tanto reproductores como enlaces de descarga. Solo /embed/ es stream.
+	if strings.Contains(host, "mega.nz") || strings.Contains(host, "mega.co.nz") {
+		return strings.Contains(path, "/embed/")
+	}
+	return true
 }
 
 func (s *Server) onlinePlayerAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", 405)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	slug := strings.TrimSpace(r.URL.Query().Get("slug"))
 	ep, _ := strconv.Atoi(r.URL.Query().Get("episode"))
 	if slug == "" || ep < 1 {
-		http.Error(w, "bad request", 400)
+		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 	players, err := s.fetchOnlinePlayers(r.Context(), slug, ep)
 	if err != nil {
-		http.Error(w, err.Error(), 502)
+		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 	if len(players) == 0 {
-		http.Error(w, "no se encontro un reproductor online compatible con el mirror", 404)
+		http.Error(w, "no se encontro un reproductor online compatible con el mirror", http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -53,7 +66,7 @@ func (s *Server) onlinePlayerAPI(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(players)
 }
 
-func (s *Server) fetchOnlinePlayers(parent context.Context, slug string, ep int) ([]onlinePlayer, error) {
+func (s *Server) fetchEpisodeHTML(parent context.Context, slug string, ep int) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(parent, 25*time.Second)
 	defer cancel()
 	u := fmt.Sprintf("https://animeav1.com/media/%s/%d", slug, ep)
@@ -75,17 +88,18 @@ func (s *Server) fetchOnlinePlayers(parent context.Context, slug string, ep int)
 	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("AnimeAV1 episodio: %s", resp.Status)
 	}
-	b, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	return io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+}
+
+func (s *Server) fetchOnlinePlayers(parent context.Context, slug string, ep int) ([]onlinePlayer, error) {
+	b, err := s.fetchEpisodeHTML(parent, slug, ep)
 	if err != nil {
 		return nil, err
 	}
 	seen := map[string]bool{}
 	out := []onlinePlayer{}
 	for _, m := range embedRE.FindAllStringSubmatch(string(b), -1) {
-		if len(m) < 3 || blockedMirrorProvider(m[1]) || seen[m[2]] {
-			continue
-		}
-		if !strings.HasPrefix(m[2], "https://") {
+		if len(m) < 3 || seen[m[2]] || !isStreamingSource(m[1], m[2]) {
 			continue
 		}
 		seen[m[2]] = true

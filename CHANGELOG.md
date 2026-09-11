@@ -2,6 +2,23 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.13] - 2026-09-11
+
+### Corregido
+- La reproducción remota deja de mostrar una segunda barra propia bajo el reproductor. Se reutilizan los botones originales de AnimeAV1 y solo puede quedar un origen activo a la vez.
+- HLS/Zilla y UPNShare/uns.bio desaparecen del selector del mirror. Los demás proveedores de streaming reales se conservan según estén disponibles en cada episodio.
+- Las fuentes de streaming y los enlaces de descarga quedan separados: Transfer.it y 1fichier nunca se usan como reproductores, y Mega solo se considera streaming cuando la URL es de tipo `/embed/`.
+- El matcher local reconoce mejor títulos de temporadas con sufijos numéricos y prioriza carpetas existentes con contenido antes de crear una nueva.
+- Antes de decidir el destino de una descarga se vuelve a escanear `/library`, evitando depender de un índice desactualizado.
+- Las carpetas nuevas y los archivos descargados se crean con permisos de escritura compatibles con la gestión posterior desde SMB.
+
+### Añadido
+- Botón **Local** integrado en la barra original de proveedores cuando existe una copia local del episodio. Si el formato es reproducible por el navegador, Local es el origen inicial y queda iluminado; se puede alternar libremente entre Local y los proveedores remotos y volver a Local en cualquier momento.
+- Si existe una copia local no reproducible directamente por el navegador, como MKV/AVI, el botón Local aparece deshabilitado con explicación y se usa un proveedor remoto compatible.
+- El botón **Descargar todos** abre un modal integrado con el estilo de la página mostrando estado por episodio, progreso en bytes y porcentaje, completados, ya existentes y errores.
+- El estado de la descarga continúa en backend aunque se cierre el modal o se abandone la página, y se persiste en SQLite para poder consultar posteriormente el resultado o detectar una interrupción por reinicio del contenedor.
+- La descarga masiva resuelve el enlace de descarga Mega episodio por episodio, independiente de los reproductores de streaming.
+
 ## [0.6.12] - 2026-09-11
 
 ### Corregido
