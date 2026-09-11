@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +17,16 @@ type onlinePlayer struct {
 	URL    string `json:"url"`
 }
 
-var embedRE = regexp.MustCompile(`server:"(HLS|UPNShare|Voe|Byse|Mega|MP4Upload)",url:"([^"]+)"`)
+var embedRE = regexp.MustCompile(`server:"([^"]+)",url:"([^"]+)"`)
+
+func blockedMirrorProvider(server string) bool {
+	switch strings.ToLower(strings.TrimSpace(server)) {
+	case "hls", "upnshare":
+		return true
+	default:
+		return false
+	}
+}
 
 func (s *Server) onlinePlayerAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -37,7 +45,7 @@ func (s *Server) onlinePlayerAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(players) == 0 {
-		http.Error(w, "no se encontro un reproductor online", 404)
+		http.Error(w, "no se encontro un reproductor online compatible con el mirror", 404)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -50,26 +58,38 @@ func (s *Server) fetchOnlinePlayers(parent context.Context, slug string, ep int)
 	defer cancel()
 	u := fmt.Sprintf("https://animeav1.com/media/%s/%d", slug, ep)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/142 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml")
 	req.Header.Set("Accept-Language", "es-ES,es;q=0.9")
-	if cookie := strings.TrimSpace(s.db.GetSetting("animeav1_session_cookie")); cookie != "" { req.Header.Set("Cookie", cookie) }
+	if cookie := strings.TrimSpace(s.db.GetSetting("animeav1_session_cookie")); cookie != "" {
+		req.Header.Set("Cookie", cookie)
+	}
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 400 { return nil, fmt.Errorf("AnimeAV1 episodio: %s", resp.Status) }
+	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("AnimeAV1 episodio: %s", resp.Status)
+	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-	if err != nil { return nil, err }
-	pref := map[string]int{"HLS": 0, "UPNShare": 1, "Voe": 2, "Byse": 3, "Mega": 4, "MP4Upload": 5}
+	if err != nil {
+		return nil, err
+	}
 	seen := map[string]bool{}
 	out := []onlinePlayer{}
 	for _, m := range embedRE.FindAllStringSubmatch(string(b), -1) {
-		if len(m) < 3 || seen[m[2]] { continue }
+		if len(m) < 3 || blockedMirrorProvider(m[1]) || seen[m[2]] {
+			continue
+		}
+		if !strings.HasPrefix(m[2], "https://") {
+			continue
+		}
 		seen[m[2]] = true
-		if !strings.HasPrefix(m[2], "https://") { continue }
 		out = append(out, onlinePlayer{Server: m[1], URL: m[2]})
 	}
-	sort.SliceStable(out, func(i, j int) bool { return pref[out[i].Server] < pref[out[j].Server] })
 	return out, nil
 }

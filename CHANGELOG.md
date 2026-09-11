@@ -2,6 +2,18 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.12] - 2026-09-11
+
+### Corregido
+- Los episodios locales en formatos que el navegador no reproduce directamente, como MKV/AVI, dejan de abrir un `<video>` roto y pasan automáticamente al reproductor remoto. El archivo local sigue contando como existente y no se vuelve a descargar.
+- El reproductor remoto oculta siempre HLS/Zilla y UPNShare/uns.bio, pero conserva todos los demás proveedores publicados por AnimeAV1 para cada episodio, incluidos Voe, Byse, Mega, MP4Upload y proveedores futuros compatibles.
+
+### Añadido
+- Vuelve el botón **Descargar todos** en la ficha de la serie.
+- La descarga recorre episodio por episodio, omite cualquier episodio ya presente en `/library`, busca un enlace Mega en la página remota del episodio y descarga secuencialmente al NAS.
+- Las descargas Mega se resuelven desde el enlace público `mega.nz/embed/...#clave`, se descifran durante la escritura y se guardan primero como `.part` antes del renombrado final.
+- Solo se ejecuta una descarga de serie a la vez para reducir carga en el EX4100 y al finalizar se reindexa `/library`.
+
 ## [0.6.11] - 2026-09-11
 
 ### Corregido
@@ -41,7 +53,7 @@ Todos los cambios relevantes del proyecto se registran en este archivo a partir 
 - Endpoint `/api/mirror/resources` para consultar inventario y log de recursos del mirror.
 
 ### Cambiado
-- El panel de administración usa el matcher multi-carpeta/franquicia en lugar de depender exclusivamente de coincidencia exacta.
+- El panel `/admin` usa el matcher multi-carpeta/franquicia en lugar de depender exclusivamente de coincidencia exacta.
 - Se mejoran las cabeceras usadas al solicitar imágenes a `cdn.animeav1.com`, con User-Agent de navegador, `Accept` de imagen y cabeceras `Sec-Fetch-*`, sin reenviar la cookie de AnimeAV1.
 - El README se reescribe para reflejar el funcionamiento actual, sin referencias a la prueba inicial ni números de versión fijos.
 - El contador de elementos sanitizados se sustituye por **Guardados en esta sincro**.
