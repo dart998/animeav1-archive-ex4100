@@ -2,6 +2,22 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.11] - 2026-09-11
+
+### Corregido
+- Las acciones actuales de AnimeAV1 vuelven a funcionar desde el mirror: búsqueda en vivo (`POST /api/search`), alta/cambio/eliminación de lista (`POST /api/user/library`), favorito (`POST /api/user/library/favorite`) y edición completa desde Mis Listas (`POST /cuenta/listas?/library`). Las peticiones se proxyan desde backend conservando la cookie únicamente en el servidor.
+- Tras una modificación de listas o favorito se refresca en segundo plano la caché `animeav1_library_json`, evitando que `/admin` quede desfasado.
+- La detección de episodios locales acepta también nombres históricos del tipo `<id-antiguo>_<episodio>_...`, como `131_3_RhWz.mp4`, aunque el `mediaId` actual de AnimeAV1 sea distinto.
+- Si una serie no está en la caché personal de AnimeAV1, la reproducción local puede usar el título indexado por el crawler como respaldo en lugar de abortar inmediatamente.
+- El fallback online devuelve todos los proveedores detectados; la interfaz permite pasar al siguiente proveedor o abrirlo fuera si uno bloquea el iframe mediante `X-Frame-Options`/`frame-ancestors`.
+- Los cuatro logos oficiales de AnimeAV1 se sirven siempre desde la imagen Docker en las rutas originales `/img/logo.svg`, `/img/logo-dark.svg`, `/img/logo-ft.svg` y `/img/logo-ft-dark.svg`, respetando los temas claro y oscuro.
+
+### Retirado
+- Se elimina de la interfaz el botón **Descargar todos** y se retira toda la implementación específica de Transfer.it. Los antiguos endpoints de descarga quedan desactivados con HTTP 410 para evitar usos accidentales mientras se diseña un sistema multi-proveedor.
+
+### Diagnóstico
+- Los logos locales, vídeos locales y fallback de CDN añaden `X-AnimeAV1-Source` para facilitar la identificación de la fuente desde DevTools.
+
 ## [0.6.10] - 2026-09-11
 
 ### Corregido
@@ -11,15 +27,8 @@ Todos los cambios relevantes del proyecto se registran en este archivo a partir 
 - El panel `/admin` deja de recorrer `/data/site` cada cinco segundos. El total de recursos se guarda en SQLite (`settings`) y el árbol completo solo se calcula al abrir explícitamente Recursos guardados o Ver logs.
 
 ### Añadido
-- Botón **Descargar todos** en la ficha de una serie, junto al botón de refresco.
-- Descarga secuencial de los episodios MP4 que falten usando el enlace `TransferIt` publicado por AnimeAV1.
-- Resolución directa de enlaces públicos de Transfer.it mediante su API compatible con MEGA, descarga con `Referer`/`Origin`, soporte de reanudación mediante `.part` + `Range`, omisión de episodios ya presentes y reindexado de `/library` al terminar.
-- Selección de carpeta de destino reutilizando el matcher local y las subcarpetas `Temporada N`; si no existe carpeta para la serie, se crea una bajo `/library` sin mover ni renombrar archivos existentes.
-- Endpoint de estado de descarga por serie y progreso visible en el tooltip del botón.
-- Endpoint para recuperar el reproductor online preferido (HLS primero) desde la ficha original cuando no hay copia local del episodio.
-
-### Pendiente
-- Marcar y desmarcar favoritos desde la ficha. Falta capturar la acción real que ejecuta AnimeAV1 para no inventar ni sobrescribir campos de la biblioteca.
+- Botón **Descargar todos** y primera implementación basada en Transfer.it. Retirada posteriormente en 0.6.11 al comprobarse que el proveedor cambia según la serie.
+- Endpoint para recuperar el reproductor online preferido desde la ficha original cuando no hay copia local del episodio.
 
 ## [0.6.9] - 2026-09-10
 
@@ -41,53 +50,27 @@ Todos los cambios relevantes del proyecto se registran en este archivo a partir 
 ## [0.6.8] - 2026-09-09
 
 ### Añadido
-- Prioridad efectiva `seed > caché > origen` para recursos estáticos conocidos. Al arrancar, los CSS/JS/SVG/imágenes/fuentes existentes en `/data/seed` se promocionan sobre `/data/site`; HTML y JSON nunca se sobrescriben desde el seed.
+- Prioridad efectiva `seed > caché > origen` para recursos estáticos conocidos.
 - Detección local multi-carpeta por serie para agrupar temporadas, Parts, OVAs/OADs/especiales relacionados sin mover ni renombrar archivos.
-- Coincidencia fuerte de episodios descargados de AnimeAV1 mediante `<mediaId>_<episodio>_...`, por delante de patrones genéricos como `S01E05`, `Ep05` o números aislados.
-
-### Cambiado
-- La reproducción local busca recursivamente en todas las carpetas relacionadas con la serie y prioriza primero coincidencias por `mediaId`, después patrones explícitos de episodio y finalmente números aislados.
-- Una carpeta que coincide exactamente con el título/alias de AnimeAV1 tiene prioridad sobre carpetas relacionadas cuando el patrón de archivo tiene la misma calidad.
+- Coincidencia fuerte de episodios descargados de AnimeAV1 mediante `<mediaId>_<episodio>_...`, por delante de patrones genéricos.
 
 ## [0.6.7] - 2026-09-09
-
-### Corregido
-- Las imágenes del CDN que SvelteKit vuelve a convertir en URLs absolutas después de hidratar la página se reescriben otra vez a `/_cdn/...`, manteniendo la prioridad de la copia local y descargando desde CDN solo cuando falta el recurso.
-- El botón de actualización individual de la ficha se vuelve a insertar si la hidratación de SvelteKit reemplaza el bloque donde estaba situado.
-
-### Cambiado
-- La descarga/actualización del sitio prioriza las series según las listas de AnimeAV1 en este orden: **Viendo → Planeado → Completado → resto**.
+- Reescritura post-hidratación de imágenes del CDN a `/_cdn/...` y reinserción del botón de refresco.
 
 ## [0.6.6] - 2026-09-09
-
-### Añadido
-- Botón de actualización individual en las fichas `/media/<slug>`, insertado junto al control de compartir y reutilizando su estilo visual.
-- Endpoint interno `POST /__mirror/refresh?path=/media/<slug>` para refrescar únicamente la ficha seleccionada sin lanzar una sincronización completa del mirror.
-- Registro de cambios histórico del proyecto en `CHANGELOG.md`.
+- Botón de actualización individual en las fichas y endpoint interno de refresco.
 
 ## [0.6.5] - 2026-09-09
-- Reproducción de episodios locales desde la biblioteca montada en `/library`.
-- Sincronización de episodios vistos con AnimeAV1 mediante la acción SvelteKit real de `/cuenta/listas?/library`.
-- La cookie de AnimeAV1 permanece exclusivamente en backend.
+- Reproducción de episodios locales y sincronización de episodios vistos con AnimeAV1.
 
 ## [0.6.4] - 2026-09-08
-- Mirror incremental y reanudable: detener una sincronización ya no elimina el progreso descargado.
-- Reutilización de recursos estáticos y páginas de episodios existentes.
-- `onclick`, `onmousedown` y `onmouseup` dejan de considerarse publicidad por sí solos.
+- Mirror incremental y reanudable.
 
 ## [0.6.3] - 2026-09-06
-- Fallback local desde `/data/seed` para recursos que AnimeAV1/CDN rechazan con 403/404.
-- Referer específico para `cdn.animeav1.com` sin reenviar la cookie de sesión.
-- Protección de namespaces SVG legítimos frente a la neutralización genérica de URLs.
+- Fallback local desde `/data/seed` y protección de recursos del CDN.
 
 ## [0.6.2] - 2026-09-02
-- Acción para detener la descarga del mirror.
-- Popups de las listas AnimeAV1 y controles deshabilitados estilizados.
-- Experimento sin `localGuard` inyectado para aislar el problema de iconos.
+- Acción para detener el mirror y popups de listas.
 
 ## [0.6.1] - 2026-09-02
-- Versión usada durante las pruebas de bundles JavaScript sin modificar para investigar los iconos ausentes.
-
----
-
-A partir de 0.6.6 cada subida de versión debe incluir su sección correspondiente en este archivo.
+- Versión usada durante pruebas de bundles JavaScript.
