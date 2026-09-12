@@ -2,6 +2,15 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.16] - 2026-09-13
+
+### Corregido
+- Las páginas de episodio con varias pistas de audio dejan de mostrar dos reproductores independientes. SUB, DUB y Local controlan ahora un único cuadro de reproducción compartido.
+- El origen **Local** se coloca siempre en la fila **SUB** cuando hay copia local, en lugar de reutilizar por error el HLS de DUB.
+- HLS y UPNShare permanecen ocultos en todas las filas; Local sustituye únicamente al HLS de SUB.
+- Los botones de proveedores duplicados entre SUB y DUB se enlazan por ocurrencia y comparten el mismo cuadro, evitando estados activos contradictorios entre filas.
+- Si hay copia local reproducible, la página arranca en **SUB · Local**. Sin copia reproducible se prioriza el primer proveedor remoto de SUB.
+
 ## [0.6.15] - 2026-09-12
 
 ### Añadido
