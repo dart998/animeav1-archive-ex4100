@@ -26,6 +26,9 @@ func main(){
 	if items,err:=libraryindex.Scan(libraryRoot);err!=nil{log.Printf("library scan: %v",err)}else if err=db.ReplaceLibrary(items);err!=nil{log.Printf("library index save: %v",err)}else{log.Printf("library indexed: %d series folders",len(items))}
 	cr:=crawler.New(cfg,db)
 	if cfg.CrawlerEnabled { go func(){if e:=cr.RunAll(context.Background());e!=nil{log.Printf("initial crawl: %v",e)};t:=time.NewTicker(cfg.CrawlerInterval);defer t.Stop();for range t.C{if e:=cr.RunAll(context.Background());e!=nil{log.Printf("scheduled crawl: %v",e)}}}() }
+	// La vigilancia de episodios nuevos es independiente del crawler por lotes: revisa
+	// únicamente las series en estado Viendo y mantiene baja la latencia de notificaciones.
+	go func(){t:=time.NewTicker(20*time.Minute);defer t.Stop();for range t.C{ctx,cancel:=context.WithTimeout(context.Background(),10*time.Minute);if e:=cr.RunNotificationCheck(ctx);e!=nil&&e!=context.Canceled&&e!=context.DeadlineExceeded{log.Printf("notification check: %v",e)};cancel()}}()
 	go func(){t:=time.NewTicker(6*time.Hour);defer t.Stop();for range t.C{if items,err:=libraryindex.Scan(libraryRoot);err==nil{_ = db.ReplaceLibrary(items)}}}()
 	mirror,e:=sitemirror.New(cfg.BaseURL,filepath.Join(cfg.DataDir,"site"));if e!=nil{log.Fatal(e)}
 	ui,e:=webui.New(db,cr,mirror,"/app/web",libraryRoot,filepath.Join(cfg.DataDir,"site"),version,commitSHA);if e!=nil{log.Fatal(e)}

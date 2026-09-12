@@ -2,6 +2,17 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.15] - 2026-09-12
+
+### Añadido
+- El modal de descarga masiva incorpora **Cancelar descarga**. La cancelación interrumpe también la transferencia Mega que esté en curso, conserva intactos los episodios ya completados y deja el trabajo con estado `cancelled`.
+- Las descargas Mega usan ahora un contexto cancelable por serie. Si se cancela o falla una transferencia, el archivo `.part` incompleto se elimina de forma controlada; nunca se elimina ni sobrescribe una copia final existente.
+- La vigilancia de episodios nuevos se separa del crawler por lotes: cada 20 minutos se revisan únicamente las fichas de las series en estado **Viendo**, reduciendo la latencia de las notificaciones sin ejecutar el trabajo pesado del crawler.
+
+### Corregido
+- Una descarga cancelada deja de continuar con episodios posteriores.
+- El modal distingue explícitamente entre descarga finalizada y descarga cancelada, y permite iniciar una nueva descarga después de la cancelación.
+
 ## [0.6.14] - 2026-09-12
 
 ### Añadido
