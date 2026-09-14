@@ -2,6 +2,13 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.17] - 2026-09-14
+
+### Cambiado
+- La cookie de AnimeAV1 se muestra en texto visible y permanece cargada en el formulario después de guardarla.
+- Se elimina el control para borrar la cookie desde el panel de administración.
+- El workflow puede redesplegar el stack mediante `PORTAINER_WEBHOOK_URL` después de publicar la imagen.
+
 ## [0.6.16] - 2026-09-13
 
 ### Corregido

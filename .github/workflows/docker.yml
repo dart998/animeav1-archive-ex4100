@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  APP_VERSION: 0.6.16
+  APP_VERSION: 0.6.17
   IMAGE_NAME: ovelayos/animeav1-archive-ex4100
 
 jobs:
@@ -27,6 +27,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: false
+      - name: Run tests
+        run: go test ./...
       - name: Verify changelog entry
         shell: bash
         run: |
@@ -61,3 +68,15 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq "${IMAGE_NAME}:${APP_VERSION}" docker-compose.yml || { echo "docker-compose.yml does not point to ${APP_VERSION}"; exit 1; }
+      - name: Redeploy Portainer stack
+        shell: bash
+        env:
+          PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          test -n "${PORTAINER_WEBHOOK_URL}"
+          curl --fail --silent --show-error \
+            --request POST \
+            --retry 3 \
+            --retry-delay 5 \
+            "${PORTAINER_WEBHOOK_URL}"

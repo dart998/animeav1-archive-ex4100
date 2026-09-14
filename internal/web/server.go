@@ -46,6 +46,7 @@ type avSeries struct {
 type adminData struct {
 	Version, CommitSHA, CommitShort, CommitURL                                           string
 	Mirror                                                                               sitemirror.State
+	AnimeAV1Cookie                                                                       string
 	AnimeAV1CookieConfigured                                                             bool
 	AV1SyncAt, AV1SyncError                                                              string
 	AV1Watching, AV1Completed, AV1Planned, AV1OnHold, AV1Dropped, AV1Local, AV1Unmatched int
@@ -134,7 +135,7 @@ func (s *Server) admin(w http.ResponseWriter, r *http.Request) {
 	if s.commitSHA != "" && s.commitSHA != "unknown" {
 		commitURL = "https://github.com/dart998/animeav1-archive-ex4100/commit/" + s.commitSHA
 	}
-	d := adminData{Version: s.version, CommitSHA: s.commitSHA, CommitShort: short, CommitURL: commitURL, Mirror: s.mirror.Snapshot(), AnimeAV1CookieConfigured: s.mirror.HasSessionCookie(), AV1SyncAt: s.db.GetSetting("animeav1_library_updated"), AV1SyncError: s.db.GetSetting("animeav1_library_error"), AV1Watching: counts[0], AV1Planned: counts[1], AV1Completed: counts[2], AV1OnHold: counts[3], AV1Dropped: counts[4], AV1Local: local, AV1Unmatched: unmatched, AV1Series: series, Library: items, MALUsername: s.db.GetSetting("mal_username")}
+	d := adminData{Version: s.version, CommitSHA: s.commitSHA, CommitShort: short, CommitURL: commitURL, Mirror: s.mirror.Snapshot(), AnimeAV1Cookie: s.db.GetSetting("animeav1_session_cookie"), AnimeAV1CookieConfigured: s.mirror.HasSessionCookie(), AV1SyncAt: s.db.GetSetting("animeav1_library_updated"), AV1SyncError: s.db.GetSetting("animeav1_library_error"), AV1Watching: counts[0], AV1Planned: counts[1], AV1Completed: counts[2], AV1OnHold: counts[3], AV1Dropped: counts[4], AV1Local: local, AV1Unmatched: unmatched, AV1Series: series, Library: items, MALUsername: s.db.GetSetting("mal_username")}
 	if e = s.tmpl.ExecuteTemplate(w, "admin.html", d); e != nil {
 		http.Error(w, e.Error(), 500)
 	}
@@ -155,15 +156,7 @@ func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if r.FormValue("clear_animeav1_cookie") == "1" {
-		if e := s.db.SetSetting("animeav1_session_cookie", ""); e != nil {
-			http.Error(w, e.Error(), 500)
-			return
-		}
-		_ = s.db.SetSetting("animeav1_library_json", "")
-		_ = s.db.SetSetting("animeav1_library_updated", "")
-		s.mirror.SetSessionCookie("")
-	} else if cookie := strings.TrimSpace(r.FormValue("animeav1_session_cookie")); cookie != "" {
+	if cookie := strings.TrimSpace(r.FormValue("animeav1_session_cookie")); cookie != "" {
 		if e := s.db.SetSetting("animeav1_session_cookie", cookie); e != nil {
 			http.Error(w, e.Error(), 500)
 			return

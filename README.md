@@ -138,11 +138,11 @@ Publicación manual:
 ./release.sh <version>
 ```
 
-El flujo normal usa GitHub Actions para construir y publicar la imagen ARMv7. Portainer puede detectar el cambio del `docker-compose.yml` mediante GitOps polling.
+El flujo normal usa GitHub Actions para probar, construir y publicar la imagen ARMv7. Al terminar llama al webhook de Portainer configurado en el secret `PORTAINER_WEBHOOK_URL`.
 
 ## Seguridad
 
-- la cookie de AnimeAV1 permanece en backend;
+- la cookie de AnimeAV1 se muestra en texto visible únicamente en `/admin` y permanece almacenada en backend;
 - no se envía al CDN;
 - se bloquean destinos publicitarios conocidos y EasyList complementa ese filtrado;
 - no se implementan bypass de DRM, tokens ni controles de acceso de proveedores;
