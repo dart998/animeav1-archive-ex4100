@@ -2,6 +2,14 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.23] - 2026-09-19
+
+### Cambiado
+- Pulsar **Descargar serie** ya no inicia la descarga ni muestra un diálogo de confirmación. Primero se hace una revisión SUB-only del estado real en `/library` y el modal muestra qué episodios ya existen y cuáles están pendientes.
+- El modal incorpora **Iniciar descargas**. Solo ese botón crea la cola y comienza las transferencias; si ya hay una descarga en curso, el botón exterior sigue abriendo directamente su progreso.
+- La previsualización ignora copias DUB y busca una copia SUB entre todos los candidatos locales, evitando que un DUB oculte una versión SUB válida.
+- La comprobación previa y la ejecución de la descarga comparten la misma detección SUB-only para que el estado mostrado antes de empezar coincida con lo que después se omitirá o descargará.
+
 ## [0.6.22] - 2026-09-19
 
 ### Corregido
