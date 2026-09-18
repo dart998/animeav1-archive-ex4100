@@ -285,6 +285,13 @@ func (s *Server) avSeries(lib []database.LibraryItem) ([]avSeries, map[int]int, 
 	out := make([]avSeries, 0, len(all))
 	counts := map[int]int{}
 	local := 0
+	folderUses := map[string]int{}
+	for _, it := range all {
+		if li, _ := matchLocal(it, lib); li != nil {
+			folderUses[filepath.Clean(li.Path)]++
+		}
+	}
+	seasonCache := map[string]localFolderSeasonSummary{}
 	for _, it := range all {
 		counts[it.Status]++
 		sr := avSeries{MediaID: string(it.MediaID), Title: it.Title, Slug: it.Slug, Status: it.StatusName(), StatusOrder: it.Status, Seen: it.Seen, Total: it.Total, Managed: it.Status == 0 || it.Status == 2, Discovered: s.db.SeriesEpisodeCount(it.Slug)}
@@ -295,6 +302,19 @@ func (s *Server) avSeries(lib []database.LibraryItem) ([]avSeries, map[int]int, 
 			sr.LocalName = li.Name
 			sr.LocalFiles = li.Files
 			sr.LocalBytes = li.Bytes
+			key := filepath.Clean(li.Path)
+			if folderUses[key] > 1 {
+				summary, ok := seasonCache[key]
+				if !ok {
+					summary = scanLocalFolderSeasons(li.Path)
+					seasonCache[key] = summary
+				}
+				if summary.Seasonal {
+					st := summary.Stats[itemSeasonNumber(it)]
+					sr.LocalFiles = st.Files
+					sr.LocalBytes = st.Bytes
+				}
+			}
 			sr.MatchType = kind
 			local++
 		}

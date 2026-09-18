@@ -2,6 +2,13 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.19] - 2026-09-18
+
+### Corregido
+- La descarga masiva usa ahora el mayor valor entre el total guardado por AnimeAV1 y los episodios ya descubiertos por el crawler, evitando dejar fuera episodios nuevos cuando la lista de AnimeAV1 está desactualizada.
+- Cuando varias temporadas comparten una misma carpeta local, **Biblioteca AnimeAV1** calcula vídeos y bytes por temporada en lugar de repetir el total completo de la carpeta para cada entrada.
+- La detección local de temporada reconoce también patrones `T1E01` / `T2E01`, `S01E01`, `Season`, `Temporada`, `Part/Parte`, `Cour` y títulos como `Act.2`; la misma lógica se reutiliza para localizar el episodio local correcto.
+
 ## [0.6.18] - 2026-09-18
 
 ### Interfaz
