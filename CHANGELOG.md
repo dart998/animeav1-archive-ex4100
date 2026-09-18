@@ -2,6 +2,12 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.20] - 2026-09-19
+
+### Corregido
+- El botón de descarga masiva deja de reutilizar como si fuera actual el estado finalizado persistido en SQLite. Solo una descarga en curso reabre el modal existente; una descarga ya finalizada inicia una nueva comprobación, recalcula el total actual y vuelve a omitir los episodios que ya existen localmente.
+- Esto permite que una serie que antes terminó en 11/11 pueda iniciar después una nueva ejecución 12/12 y descargar únicamente el episodio recién disponible.
+
 ## [0.6.19] - 2026-09-18
 
 ### Corregido
