@@ -14,17 +14,21 @@ import (
 )
 
 func (s *Server) initMirrorResourceCounter() {
-	if strings.TrimSpace(s.db.GetSetting("mirror_resource_count")) == "" {
+	raw := strings.TrimSpace(s.db.GetSetting("mirror_resource_count"))
+	if raw == "" {
+		s.mirrorResourceCountCache.Store(0)
 		_ = s.db.SetSetting("mirror_resource_count", "0")
 		go s.recountMirrorResources()
+	} else if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+		s.mirrorResourceCountCache.Store(int64(n))
 	}
 	go s.watchMirrorResourceCounter()
 }
 
 func (s *Server) mirrorResourceCount() int {
-	n, _ := strconv.Atoi(strings.TrimSpace(s.db.GetSetting("mirror_resource_count")))
+	n := s.mirrorResourceCountCache.Load()
 	if n < 0 { return 0 }
-	return n
+	return int(n)
 }
 
 func (s *Server) recountMirrorResources() int {
@@ -36,6 +40,7 @@ func (s *Server) recountMirrorResources() int {
 		total++
 		return nil
 	})
+	s.mirrorResourceCountCache.Store(int64(total))
 	_ = s.db.SetSetting("mirror_resource_count", strconv.Itoa(total))
 	return total
 }

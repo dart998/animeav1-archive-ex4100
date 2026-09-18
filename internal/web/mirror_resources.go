@@ -39,10 +39,14 @@ func (s *Server) mirrorResources(w http.ResponseWriter, r *http.Request) {
 	state := s.mirror.Snapshot()
 	// Lightweight mode is used by the admin polling loop. It never walks /data/site.
 	if r.URL.Query().Get("full") != "1" {
+		logs := make([]mirrorLogLine, 0, len(state.ErrorLog))
+		for _, e := range state.ErrorLog {
+			logs = append(logs, mirrorLogLine{Time: logClock(e.Time), Level: "ERR", Message: e.Message})
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"total": s.mirrorResourceCount(), "saved_this_sync": state.Fetched,
-			"fetched": state.Fetched, "reused": state.Reused, "errors": state.Errors, "running": state.Running,
+			"fetched": state.Fetched, "reused": state.Reused, "errors": state.Errors, "running": state.Running, "log": logs,
 		})
 		return
 	}

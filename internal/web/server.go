@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -30,6 +31,7 @@ type Server struct {
 	siteRoot    string
 	version     string
 	commitSHA   string
+	mirrorResourceCountCache atomic.Int64
 }
 
 type avSeries struct {

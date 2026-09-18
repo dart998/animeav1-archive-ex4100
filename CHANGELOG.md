@@ -2,6 +2,16 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.18] - 2026-09-18
+
+### Interfaz
+- **Biblioteca AnimeAV1** y **Biblioteca existente** se pueden plegar y desplegar pulsando su cabecera. La flecha queda alineada al borde derecho con el mismo margen que el título al borde izquierdo.
+
+### Rendimiento
+- **Ver logs**, **Errores** y **Guardados en esta sincro** dejan de solicitar el inventario completo de `/data/site`; usan únicamente el estado y los errores ya disponibles en memoria.
+- El contador de recursos del mirror se mantiene en memoria para las consultas del panel y se persiste en SQLite solo cuando se recalcula, evitando una lectura de SQLite en cada refresco de estado.
+- **Recursos guardados** conserva el inventario completo bajo demanda, ya que es la única vista que necesita construir el árbol de archivos.
+
 ## [0.6.17] - 2026-09-14
 
 ### Cambiado
