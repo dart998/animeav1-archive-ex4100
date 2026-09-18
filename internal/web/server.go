@@ -91,6 +91,7 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("/api/av1/watched", s.markWatched)
 	m.HandleFunc("/api/download-series", s.downloadSeriesAPI)
 	m.HandleFunc("/api/download-status", s.downloadStatusAPI)
+	m.HandleFunc("/admin/downloads/reconcile", s.reconcileDownloadsAPI)
 	m.HandleFunc("/admin/settings", s.settings)
 	m.HandleFunc("/admin/rescan", s.rescan)
 	m.HandleFunc("/admin/sync-av1", s.syncAV1)

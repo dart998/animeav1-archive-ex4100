@@ -2,6 +2,16 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.21] - 2026-09-19
+
+### Añadido
+- **Revisar caché de descargas** en Biblioteca existente compara manualmente los estados persistidos de descarga con los archivos reales de `/library`. Los episodios registrados que ya no existen vuelven a estado pendiente y, si no queda ninguno de los archivos asociados, se elimina únicamente ese estado de caché. Nunca se borran vídeos del NAS.
+
+### Corregido
+- Las carpetas nuevas de descarga intentan conservar siempre el título completo. Solo si el filesystem rechaza realmente el nombre por longitud o no conserva exactamente el nombre solicitado se usa un nombre abreviado determinista y seguro para UTF-8. Las carpetas existentes con contenido no se renombran automáticamente.
+- Los errores temporales de la API de Mega, incluido `-6`, se interpretan y reintentan con espera exponencial en lugar de finalizar inmediatamente con un error genérico. Los errores permanentes como cuota superada se muestran con una descripción explícita.
+- Una serie incompleta que ya coincide con una carpeta local continúa usando esa carpeta mediante el matcher existente, evitando crear otra carpeta paralela.
+
 ## [0.6.20] - 2026-09-19
 
 ### Corregido
