@@ -2,6 +2,14 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.22] - 2026-09-19
+
+### Corregido
+- La descarga masiva es ahora **SUB-only**: los enlaces Mega se asocian con la variante subtitulada de la página del episodio y las fuentes DUB se descartan, sin usarlas como fallback.
+- Un archivo local cuyo nombre indique `DUB` deja de contar como episodio existente para la descarga masiva. El DUB se conserva intacto en disco y, si falta la versión SUB, se descarga además la copia subtitulada.
+- Como defensa adicional, si los metadatos de Mega revelan que el archivo seleccionado es DUB, la transferencia se rechaza antes de escribir el vídeo final.
+- Cuando hay varias fuentes Mega sin información suficiente para distinguir SUB/DUB, la descarga falla de forma segura con «sin enlace Mega SUB» en lugar de elegir una fuente ambigua.
+
 ## [0.6.21] - 2026-09-19
 
 ### Añadido
