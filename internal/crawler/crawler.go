@@ -280,7 +280,7 @@ func (s *Service) RunTarget(ctx context.Context, slug string) error {
 	nums := map[int]bool{}
 	for _, m := range epRE.FindAllStringSubmatch(body, -1) {
 		n, _ := strconv.Atoi(m[1])
-		if n > 0 {
+		if n >= 0 {
 			nums[n] = true
 		}
 	}

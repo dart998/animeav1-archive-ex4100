@@ -25,28 +25,19 @@ type libraryFormState struct {
 	MediaID IDString
 }
 
-func (c *Client) MarkWatched(ctx context.Context, cookie string, mediaID IDString, episode int) error {
-	if strings.TrimSpace(cookie)=="" { return errors.New("cookie de AnimeAV1 no configurada") }
-	if strings.TrimSpace(string(mediaID))=="" || episode < 1 { return errors.New("mediaId o episodio invalido") }
-	state,err:=c.libraryFormState(ctx,cookie,mediaID); if err!=nil{return err}
-	if episode < state.Episode { episode=state.Episode }
-	state.Episode=episode
-	payload,err:=encodeLibraryForm(state); if err!=nil{return err}
-	form:=url.Values{}
-	form.Set("__superform_json",payload)
-	form.Set("__superform_id",librarySuperformID)
+func (c *Client) saveLibraryForm(ctx context.Context,cookie string,state libraryFormState) error {
+	payload,err:=encodeLibraryForm(state);if err!=nil{return err};form:=url.Values{};form.Set("__superform_json",payload);form.Set("__superform_id",librarySuperformID)
 	req,err:=http.NewRequestWithContext(ctx,http.MethodPost,c.base+"/cuenta/listas?/library",strings.NewReader(form.Encode()));if err!=nil{return err}
-	req.Header.Set("Accept","application/json")
-	req.Header.Set("Content-Type","application/x-www-form-urlencoded")
-	req.Header.Set("Origin",c.base)
-	req.Header.Set("Referer",c.base+"/cuenta/listas/viendo")
-	req.Header.Set("X-SvelteKit-Action","true")
-	req.Header.Set("User-Agent","Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 Chrome/124 Safari/537.36")
-	req.Header.Set("Cookie",cookie)
-	resp,err:=c.http.Do(req);if err!=nil{return err};defer resp.Body.Close()
-	b,_:=io.ReadAll(io.LimitReader(resp.Body,1<<20))
-	if resp.StatusCode<200||resp.StatusCode>=300{return fmt.Errorf("AnimeAV1 actualizar visto: HTTP %d: %s",resp.StatusCode,strings.TrimSpace(string(b)))}
-	return nil
+	req.Header.Set("Accept","application/json");req.Header.Set("Content-Type","application/x-www-form-urlencoded");req.Header.Set("Origin",c.base);req.Header.Set("Referer",c.base+"/cuenta/listas/viendo");req.Header.Set("X-SvelteKit-Action","true");req.Header.Set("User-Agent","Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 Chrome/124 Safari/537.36");req.Header.Set("Cookie",cookie)
+	resp,err:=c.http.Do(req);if err!=nil{return err};defer resp.Body.Close();b,_:=io.ReadAll(io.LimitReader(resp.Body,1<<20));if resp.StatusCode<200||resp.StatusCode>=300{return fmt.Errorf("AnimeAV1 actualizar biblioteca: HTTP %d: %s",resp.StatusCode,strings.TrimSpace(string(b)))};return nil
+}
+func (c *Client) MarkWatched(ctx context.Context,cookie string,mediaID IDString,episode int) error {
+	if strings.TrimSpace(cookie)==""{return errors.New("cookie de AnimeAV1 no configurada")};if strings.TrimSpace(string(mediaID))==""||episode<0{return errors.New("mediaId o episodio invalido")}
+	state,err:=c.libraryFormState(ctx,cookie,mediaID);if err!=nil{return err};if episode<state.Episode{episode=state.Episode};state.Episode=episode;return c.saveLibraryForm(ctx,cookie,state)
+}
+func (c *Client) Complete(ctx context.Context,cookie string,mediaID IDString) error {
+	if strings.TrimSpace(cookie)==""{return errors.New("cookie de AnimeAV1 no configurada")};if strings.TrimSpace(string(mediaID))==""{return errors.New("mediaId invalido")}
+	state,err:=c.libraryFormState(ctx,cookie,mediaID);if err!=nil{return err};state.Status=2;return c.saveLibraryForm(ctx,cookie,state)
 }
 
 func (c *Client) libraryFormState(ctx context.Context,cookie string,mediaID IDString)(libraryFormState,error){

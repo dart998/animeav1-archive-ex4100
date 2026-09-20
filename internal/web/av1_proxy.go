@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/dart998/animeav1-archive-ex4100/internal/animeav1"
 )
 
 func shouldProxyAnimeAV1(r *http.Request) bool {
@@ -75,19 +77,13 @@ func (s *Server) proxyAnimeAV1(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) refreshAnimeAV1Cache() {
-	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
-	defer cancel()
-	items, err := s.av1.Library(ctx, s.db.GetSetting("animeav1_session_cookie"))
-	if err != nil {
-		_ = s.db.SetSetting("animeav1_library_error", err.Error())
-		return
+	ctx,cancel:=context.WithTimeout(context.Background(),35*time.Second);defer cancel();cookie:=s.db.GetSetting("animeav1_session_cookie");before:=s.cachedAV1()
+	items,err:=s.av1.Library(ctx,cookie);if err!=nil{_=s.db.SetSetting("animeav1_library_error",err.Error());return}
+	old:=map[string]animeav1.Item{};for _,it:=range before{old[string(it.MediaID)]=it}
+	for i:=range items{
+		it:=&items[i];prev,ok:=old[string(it.MediaID)];if !ok||it.Status!=0||it.Seen<=prev.Seen{continue}
+		state,e:=s.av1.SeriesState(ctx,cookie,it.Slug);if e!=nil||!state.Finalized||state.LastEpisode<0||it.Seen<state.LastEpisode{continue}
+		if e=s.av1.Complete(ctx,cookie,it.MediaID);e==nil{it.Status=2}
 	}
-	b, err := json.Marshal(items)
-	if err != nil {
-		return
-	}
-	_ = s.db.SetSetting("animeav1_library_json", string(b))
-	_ = s.db.SetSetting("animeav1_library_updated", time.Now().Format(time.RFC3339))
-	_ = s.db.SetSetting("animeav1_library_error", "")
-	s.crawl.RefreshConfigState()
+	b,err:=json.Marshal(items);if err!=nil{return};_=s.db.SetSetting("animeav1_library_json",string(b));_=s.db.SetSetting("animeav1_library_updated",time.Now().Format(time.RFC3339));_=s.db.SetSetting("animeav1_library_error","");s.crawl.RefreshConfigState()
 }

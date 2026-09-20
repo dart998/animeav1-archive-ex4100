@@ -2,6 +2,16 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.24] - 2026-09-21
+
+### Añadido
+- Las temporadas que publican un **episodio 0** se descargan y reproducen correctamente. La descarga masiva usa el rango `0..N` cuando el crawler detecta ese episodio; el resto de series mantiene `1..N`.
+- Al marcar como visto el último episodio disponible de una temporada cuya ficha pública figura como **Finalizado**, la entrada personal pasa automáticamente de **Viendo** a **Completado**.
+
+### Corregido
+- Los reproductores externos, incluido **Voe**, incorporan soporte reforzado de pantalla completa. Además del permiso nativo del iframe, el mirror ofrece un control propio que pone el contenedor compartido a pantalla completa.
+- El crawler deja de descartar el episodio 0 y las APIs de reproducción local permiten numeración 0.
+
 ## [0.6.23] - 2026-09-19
 
 ### Cambiado
