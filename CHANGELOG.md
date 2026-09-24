@@ -2,6 +2,22 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.25] - 2026-09-25
+
+### Añadido
+- Enlace **Admin** en el header, situado inmediatamente a la izquierda de **Horario**.
+- Configuración inicial de credenciales de administración en la primera entrada a `/admin`, sin usuario ni contraseña por defecto.
+- Autenticación persistente del área Admin: contraseña derivada con PBKDF2-HMAC-SHA256, secreto de sesión persistido en SQLite y cookie firmada `HttpOnly` / `SameSite=Strict` con una duración de 30 días.
+- Opción **Cerrar sesión** dentro del panel Admin.
+
+### Cambiado
+- Todas las rutas sensibles `/admin/*` requieren una sesión Admin válida, incluyendo ajustes, sincronizaciones, reindexado, reconciliación y control del mirror.
+- En Voe, el control de pantalla completa funcional del mirror se superpone al botón inferior derecho del reproductor para evitar el falso fullscreen limitado al iframe.
+
+### Eliminado
+- Botón **Compartir** de la vista de serie.
+- Botones **Compartir** y **Reportar / Reportar episodio** de la vista de episodio.
+
 ## [0.6.24] - 2026-09-21
 
 ### Añadido

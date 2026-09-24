@@ -69,7 +69,10 @@ func New(db *database.DB, c *crawler.Service, mirror *sitemirror.Mirror, webDir,
 		}
 		return fmt.Sprintf("%d B", v)
 	}}
-	t, e := template.New("root").Funcs(fm).ParseFiles(filepath.Join(webDir, "templates", "admin.html"))
+	t, e := template.New("root").Funcs(fm).ParseFiles(
+		filepath.Join(webDir, "templates", "admin.html"),
+		filepath.Join(webDir, "templates", "admin_auth.html"),
+	)
 	if e != nil {
 		return nil, e
 	}
@@ -91,14 +94,17 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("/api/av1/watched", s.markWatched)
 	m.HandleFunc("/api/download-series", s.downloadSeriesAPI)
 	m.HandleFunc("/api/download-status", s.downloadStatusAPI)
-	m.HandleFunc("/admin/downloads/reconcile", s.reconcileDownloadsAPI)
-	m.HandleFunc("/admin/settings", s.settings)
-	m.HandleFunc("/admin/rescan", s.rescan)
-	m.HandleFunc("/admin/sync-av1", s.syncAV1)
-	m.HandleFunc("/admin/sync-mal", s.syncMAL)
-	m.HandleFunc("/admin/mirror", s.startMirror)
-	m.HandleFunc("/admin/mirror/stop", s.stopMirror)
-	m.HandleFunc("/admin", s.admin)
+	m.HandleFunc("/admin/setup", s.adminSetup)
+	m.HandleFunc("/admin/login", s.adminLogin)
+	m.HandleFunc("/admin/logout", s.adminLogout)
+	m.HandleFunc("/admin/downloads/reconcile", s.requireAdmin(s.reconcileDownloadsAPI))
+	m.HandleFunc("/admin/settings", s.requireAdmin(s.settings))
+	m.HandleFunc("/admin/rescan", s.requireAdmin(s.rescan))
+	m.HandleFunc("/admin/sync-av1", s.requireAdmin(s.syncAV1))
+	m.HandleFunc("/admin/sync-mal", s.requireAdmin(s.syncMAL))
+	m.HandleFunc("/admin/mirror", s.requireAdmin(s.startMirror))
+	m.HandleFunc("/admin/mirror/stop", s.requireAdmin(s.stopMirror))
+	m.HandleFunc("/admin", s.requireAdmin(s.admin))
 	m.HandleFunc("/_cdn/", s.cdnResource)
 	m.HandleFunc("/media/", s.mediaMirror)
 	m.HandleFunc("/", s.siteMirror)
