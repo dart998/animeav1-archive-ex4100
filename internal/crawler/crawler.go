@@ -225,8 +225,8 @@ func (s *Service) watchedItem(slug string) (animeav1.Item, bool) {
 	}
 	return animeav1.Item{}, false
 }
-func (s *Service) addEpisodeNotifications(item animeav1.Item, episodes []int, previousCount int) {
-	if previousCount <= 0 {
+func (s *Service) addEpisodeNotifications(item animeav1.Item, episodes []int, previousMax int) {
+	if previousMax < 0 {
 		return
 	}
 	var ns []episodeNotification
@@ -237,7 +237,7 @@ func (s *Service) addEpisodeNotifications(item animeav1.Item, episodes []int, pr
 	}
 	changed := false
 	for _, ep := range episodes {
-		if ep <= previousCount {
+		if ep <= previousMax {
 			continue
 		}
 		id := item.Slug + ":" + strconv.Itoa(ep)
@@ -275,7 +275,7 @@ func (s *Service) RunTarget(ctx context.Context, slug string) error {
 	if err != nil {
 		return err
 	}
-	previousCount := s.db.SeriesEpisodeCount(slug)
+	previousMax := s.db.SeriesMaxEpisode(slug)
 	epRE := regexp.MustCompile(`/media/` + regexp.QuoteMeta(slug) + `/(\d+)`)
 	nums := map[int]bool{}
 	for _, m := range epRE.FindAllStringSubmatch(body, -1) {
@@ -296,7 +296,7 @@ func (s *Service) RunTarget(ctx context.Context, slug string) error {
 		}
 	}
 	if item, ok := s.watchedItem(slug); ok {
-		s.addEpisodeNotifications(item, episodes, previousCount)
+		s.addEpisodeNotifications(item, episodes, previousMax)
 	}
 	return nil
 }

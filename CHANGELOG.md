@@ -2,6 +2,14 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.26] - 2026-09-27
+
+### Corregido
+- El badge rojo de notificaciones queda anclado únicamente al botón real de la campana; la animación se aplica al icono y ya no puede mover un contenedor completo por el lateral de la página.
+- Las notificaciones locales del crawler se muestran dentro del mismo desplegable de **Notificaciones** que abre la campana, por lo que el contador y la lista visible representan la misma fuente local.
+- **Leer todo** marca también como leídas las notificaciones locales sin bloquear el comportamiento original de AnimeAV1.
+- La detección de episodios nuevos usa ahora el **mayor número de episodio ya conocido** en lugar del número total de filas. Esto evita falsos positivos con numeraciones incompletas y corrige el caso de series con episodio 0.
+
 ## [0.6.25] - 2026-09-25
 
 ### Añadido
