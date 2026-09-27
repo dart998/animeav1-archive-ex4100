@@ -2,6 +2,13 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.29] - 2026-09-28
+
+### Rollback
+- Revertido el cambio de selección visual de proveedores introducido en 0.6.28.
+- Restaurado el comportamiento de reproducción y navegación de 0.6.27 tras detectarse duplicación de reproductores y alteración del menú móvil.
+- Se mantienen los arreglos de 0.6.27: botón **Local** disponible cuando hay archivo descargado y errores de **Actualizar listas AV1** mostrados dentro de Admin.
+
 ## [0.6.28] - 2026-09-27
 
 ### Corregido
