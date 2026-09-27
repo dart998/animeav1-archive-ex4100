@@ -2,6 +2,16 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.28] - 2026-09-27
+
+### Corregido
+- El proveedor activo del reproductor queda resaltado en verde de forma consistente.
+- El mirror captura el estilo activo original de UPNShare antes de ocultarlo y lo reutiliza para **Local**, Voe, Byse y MP4Upload.
+- Se añade una clase propia de estado activo para asegurar que solo un proveedor aparece seleccionado y evitar que todos queden visualmente apagados.
+
+### Pipeline
+- Para acelerar cambios UI pequeños, el workflow ejecuta un smoke test focalizado del paquete web en lugar de toda la suite `go test ./...`.
+
 ## [0.6.27] - 2026-09-27
 
 ### Corregido
