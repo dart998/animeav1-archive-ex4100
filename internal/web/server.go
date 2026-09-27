@@ -174,6 +174,21 @@ func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
+func wantsJSON(r *http.Request) bool {
+	return strings.Contains(strings.ToLower(r.Header.Get("Accept")), "application/json") ||
+		strings.EqualFold(r.Header.Get("X-Requested-With"), "fetch")
+}
+
+func writeAdminActionError(w http.ResponseWriter, r *http.Request, err error) {
+	if wantsJSON(r) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
 func (s *Server) syncAV1(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", 405)
@@ -185,21 +200,33 @@ func (s *Server) syncAV1(w http.ResponseWriter, r *http.Request) {
 	items, err := s.av1.Library(ctx, cookie)
 	if err != nil {
 		_ = s.db.SetSetting("animeav1_library_error", err.Error())
-		http.Redirect(w, r, "/admin", http.StatusSeeOther)
+		writeAdminActionError(w, r, err)
 		return
 	}
 	b, err := json.Marshal(items)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		writeAdminActionError(w, r, err)
 		return
 	}
 	if err = s.db.SetSetting("animeav1_library_json", string(b)); err != nil {
-		http.Error(w, err.Error(), 500)
+		writeAdminActionError(w, r, err)
 		return
 	}
-	_ = s.db.SetSetting("animeav1_library_updated", time.Now().Format(time.RFC3339))
-	_ = s.db.SetSetting("animeav1_library_error", "")
+	now := time.Now().Format(time.RFC3339)
+	if err = s.db.SetSetting("animeav1_library_updated", now); err != nil {
+		writeAdminActionError(w, r, err)
+		return
+	}
+	if err = s.db.SetSetting("animeav1_library_error", ""); err != nil {
+		writeAdminActionError(w, r, err)
+		return
+	}
 	s.crawl.RefreshConfigState()
+	if wantsJSON(r) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "updated": now, "items": len(items)})
+		return
+	}
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 func (s *Server) rescan(w http.ResponseWriter, r *http.Request) {

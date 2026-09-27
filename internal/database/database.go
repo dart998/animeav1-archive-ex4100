@@ -40,7 +40,7 @@ func Open(path string) (*DB, error) {
 }
 
 func (d *DB) Migrate() error {
-	_, err := d.Exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
+	_, err := d.Exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
 CREATE TABLE IF NOT EXISTS anime (id INTEGER PRIMARY KEY, slug TEXT UNIQUE NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, last_seen_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS episodes (id INTEGER PRIMARY KEY, anime_id INTEGER NOT NULL REFERENCES anime(id) ON DELETE CASCADE, number INTEGER NOT NULL, title TEXT, url TEXT NOT NULL, selected_provider TEXT, selected_url TEXT, status TEXT NOT NULL DEFAULT 'discovered', last_seen_at TEXT NOT NULL, UNIQUE(anime_id, number));
 CREATE TABLE IF NOT EXISTS video_sources (id INTEGER PRIMARY KEY, episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE, provider TEXT NOT NULL, source_url TEXT NOT NULL DEFAULT '', priority INTEGER NOT NULL, detected_at TEXT NOT NULL, status TEXT NOT NULL, error TEXT NOT NULL DEFAULT '', UNIQUE(episode_id, provider, source_url));

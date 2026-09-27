@@ -2,6 +2,14 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.27] - 2026-09-27
+
+### Corregido
+- El reproductor muestra siempre un botón **Local** cuando existe una copia descargada del episodio, aunque la fila SUB no tenga proveedor HLS.
+- Al abrir un episodio con archivo local reproducible, **Local** queda seleccionado explícitamente; después de cambiar a Voe, Byse o MP4Upload se puede volver al archivo del NAS.
+- **Actualizar listas AV1** ya no abandona el panel Admin al producirse un error: la operación se ejecuta desde la propia interfaz y muestra el resultado o el error debajo del botón.
+- SQLite utiliza ahora `PRAGMA busy_timeout=5000` para tolerar bloqueos breves antes de devolver `SQLITE_BUSY`.
+
 ## [0.6.26] - 2026-09-27
 
 ### Corregido
