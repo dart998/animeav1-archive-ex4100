@@ -2,6 +2,18 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.30] - 2026-09-28
+
+### Corregido
+- En móvil, el mirror ya no crea un segundo reproductor por exigir un ancho mínimo de 450 px: ahora identifica el reproductor visible por área con umbral compatible con pantallas estrechas.
+- Se vigila la hidratación tardía de AnimeAV1 y se elimina cualquier reproductor original que vuelva a insertarse fuera del reproductor compartido del mirror.
+- El enlace **Admin** ya no se inyecta en la navegación móvil inferior.
+- En escritorio, **Admin** solo se añade en el bloque de navegación que contiene también **Catálogo de Animes** y **Horario**, manteniéndose inmediatamente a la izquierda de Horario.
+
+### Verificación
+- Probado con Chromium headless a **390×844**: 0 enlaces Admin en navegación móvil, 1 único reproductor, sin reproductor original ni duplicado reinyectado.
+- Probado a **1280×720**: Admin aparece antes de Horario y se mantiene un único reproductor.
+
 ## [0.6.29] - 2026-09-28
 
 ### Rollback
