@@ -2,6 +2,18 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.32] - 2026-10-01
+
+### Corregido
+- La versión del mirror queda realmente debajo de **By fans for fans** en un bloque vertical propio, evitando que el footer comprima la frase o reduzca visualmente su tamaño.
+- La frase **By fans for fans** conserva su tamaño y no se parte por falta de espacio dentro del flex del footer.
+- El botón adicional de pantalla completa del mirror se muestra **solo en Voe**.
+- Byse y MP4Upload conservan exclusivamente sus controles nativos de pantalla completa; sus iframes mantienen los permisos `fullscreen` y `allowfullscreen`.
+
+### Verificación
+- Chromium escritorio: **By fans for fans** permanece en una sola línea y `AnimeAV1 Archive v0.6.32` aparece debajo.
+- Chromium móvil: Byse y MP4Upload no reciben botón fullscreen del mirror y mantienen permisos de fullscreen; Voe conserva exactamente un botón adicional.
+
 ## [0.6.31] - 2026-10-01
 
 ### Añadido

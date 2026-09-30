@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  APP_VERSION: 0.6.31
+  APP_VERSION: 0.6.32
   IMAGE_NAME: ovelayos/animeav1-archive-ex4100
 
 jobs:
@@ -34,7 +34,7 @@ jobs:
           cache: false
       - name: Run focused UI regression tests
         run: |
-          go test ./internal/web -run '^(TestMobilePlayerUsesResponsiveCandidateAndCleanup|TestPlayerActiveSourceUsesOwnVisualState|TestArchiveVersionBridgeAppearsBelowFansTagline)$' -count=1
+          go test ./internal/web -run '^(TestMobilePlayerUsesResponsiveCandidateAndCleanup|TestPlayerActiveSourceUsesOwnVisualState|TestArchiveVersionBridgeAppearsBelowFansTagline|TestVoeFullscreenOverlayUsesParentFullscreen)$' -count=1
           go test ./internal/site -run '^TestAdminNavStaysOutOfMobileNavigation$' -count=1
       - name: Verify changelog entry
         shell: bash
