@@ -2,6 +2,19 @@
 
 Todos los cambios relevantes del proyecto se registran en este archivo a partir de la versión 0.6.6.
 
+## [0.6.31] - 2026-10-01
+
+### Añadido
+- El footer del mirror muestra la versión de la aplicación justo debajo de **By fans for fans**, con formato dinámico `AnimeAV1 Archive vX.Y.Z`, equivalente al patrón usado en AnimeAV1 Android.
+
+### Corregido
+- El proveedor de vídeo activo queda resaltado en verde mediante un estado visual propio del mirror.
+- **Local**, Voe, Byse y MP4Upload cambian el resaltado al seleccionar cada fuente sin alterar la estructura del reproductor ni la navegación móvil.
+
+### Verificación
+- Probado con Chromium a **390×844**: Local activo al iniciar, cambio de resaltado a Voe y vuelta a Local, manteniendo un único reproductor.
+- Verificado el texto `AnimeAV1 Archive v0.6.31` debajo de **By fans for fans**.
+
 ## [0.6.30] - 2026-09-28
 
 ### Corregido

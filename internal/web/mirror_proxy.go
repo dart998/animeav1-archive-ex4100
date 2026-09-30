@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -70,6 +71,25 @@ func patchMirrorHTML(body []byte) []byte {
 	return body
 }
 
+
+func archiveVersionBridge(version string) []byte {
+	label := "AnimeAV1 Archive v" + strings.TrimSpace(version)
+	q, _ := json.Marshal(label)
+	return []byte(`<script id="mirror-app-version-script">(function(){var label=` + string(q) + `;function put(){if(document.getElementById('mirror-app-version'))return;var xs=Array.prototype.slice.call(document.querySelectorAll('p,span,div,small')).filter(function(e){return (e.textContent||'').replace(/\\s+/g,' ').trim()==='By fans for fans'});xs.sort(function(a,b){return (a.children.length-b.children.length)||((a.textContent||'').length-(b.textContent||'').length)});var t=xs[0];if(!t||!t.parentNode)return;var v=document.createElement('div');v.id='mirror-app-version';v.textContent=label;t.insertAdjacentElement('afterend',v)}function start(){put();new MutationObserver(put).observe(document.documentElement,{subtree:true,childList:true})}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start()})();</script><style>#mirror-app-version{display:block;width:100%;margin-top:4px;font-size:12px;line-height:1.4;opacity:.62}</style>`)
+}
+
+func injectArchiveVersion(body []byte, version string) []byte {
+	bridge := archiveVersionBridge(version)
+	if i := bytes.LastIndex(bytes.ToLower(body), []byte("</body>")); i >= 0 {
+		out := make([]byte, 0, len(body)+len(bridge))
+		out = append(out, body[:i]...)
+		out = append(out, bridge...)
+		out = append(out, body[i:]...)
+		return out
+	}
+	return append(body, bridge...)
+}
+
 func isBrandAsset(path string) bool {
 	switch path {
 	case "/img/logo.svg", "/img/logo-dark.svg", "/img/logo-ft.svg", "/img/logo-ft-dark.svg": return true
@@ -95,6 +115,7 @@ func (s *Server) siteMirror(w http.ResponseWriter, r *http.Request) {
 	for k, vv := range res.Header { for _, v := range vv { w.Header().Add(k, v) } }
 	if strings.Contains(strings.ToLower(res.Header.Get("Content-Type")), "text/html") {
 		body = patchMirrorHTML(body)
+		body = injectArchiveVersion(body, s.version)
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	}
 	w.WriteHeader(res.StatusCode)
