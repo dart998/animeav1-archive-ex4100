@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  APP_VERSION: 0.6.32
+  APP_VERSION: 0.6.33
   IMAGE_NAME: ovelayos/animeav1-archive-ex4100
 
 jobs:
@@ -32,15 +32,15 @@ jobs:
         with:
           go-version: '1.23.x'
           cache: false
-      - name: Run focused UI regression tests
+      - name: Run focused regression tests
         run: |
-          go test ./internal/web -run '^(TestMobilePlayerUsesResponsiveCandidateAndCleanup|TestPlayerActiveSourceUsesOwnVisualState|TestArchiveVersionBridgeAppearsBelowFansTagline|TestVoeFullscreenOverlayUsesParentFullscreen)$' -count=1
+          go test ./internal/web -run '^(TestExactFolderWinsOverFranchiseStem|TestHistoricalMediaIDFallbackStillWorks|TestArchiveVersionBridgePreservesOriginalFansBlock|TestMobilePlayerUsesResponsiveCandidateAndCleanup|TestPlayerActiveSourceUsesOwnVisualState|TestVoeFullscreenOverlayUsesParentFullscreen)$' -count=1
           go test ./internal/site -run '^TestAdminNavStaysOutOfMobileNavigation$' -count=1
-      - name: Verify changelog entry
+      - name: Verify release note
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq "## [${APP_VERSION}]" CHANGELOG.md || { echo "CHANGELOG.md does not contain an entry for ${APP_VERSION}"; exit 1; }
+          test -f "RELEASE_${APP_VERSION}.md"
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx

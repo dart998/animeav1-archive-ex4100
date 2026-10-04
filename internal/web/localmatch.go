@@ -43,12 +43,13 @@ func localFolderCandidates(it animeav1.Item, lib []database.LibraryItem) []local
 	candidates:=[]string{it.Title};for _,v:=range it.Aliases{if strings.TrimSpace(v)!=""{candidates=append(candidates,v)}}
 	exact:=map[string]bool{};stems:=map[string]bool{};aliases:=[]string{}
 	for idx,c:=range candidates{n:=normalizeName(c);if n!=""{exact[n]=true};st:=seriesStem(c);if st!=""{stems[st]=true};if idx>0&&significantAlias(c){aliases=append(aliases,n)}}
-	out:=make([]localFolderCandidate,0)
+	out:=make([]localFolderCandidate,0);best:=99
 	for _,li:=range lib{
 		n:=normalizeName(li.Name);rank:=99
 		if exact[n]{rank=0}else if st:=seriesStem(li.Name);st!=""&&stems[st]{rank=1}else{for _,a:=range aliases{if strings.HasPrefix(n,a)||strings.Contains(n,a){rank=2;break}}}
-		if rank<99{out=append(out,localFolderCandidate{Item:li,Rank:rank})}
+		if rank<99{if rank<best{best=rank};out=append(out,localFolderCandidate{Item:li,Rank:rank})}
 	}
+	if best<99{filtered:=out[:0];for _,c:=range out{if c.Rank==best{filtered=append(filtered,c)}};out=filtered}
 	sort.SliceStable(out,func(i,j int)bool{if out[i].Rank!=out[j].Rank{return out[i].Rank<out[j].Rank};if out[i].Item.Files!=out[j].Item.Files{return out[i].Item.Files>out[j].Item.Files};return strings.ToLower(out[i].Item.Name)<strings.ToLower(out[j].Item.Name)})
 	return out
 }
