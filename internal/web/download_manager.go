@@ -56,6 +56,9 @@ func downloadEpisodeRange(itemTotal,discovered int,hasZero bool)[]int{
 	start:=1;if hasZero{start=0}
 	out:=make([]int,total);for i:=0;i<total;i++{out[i]=start+i};return out
 }
+func downloadEpisodeOrder(episodes []int,seen int)[]int{
+	out:=make([]int,0,len(episodes));for _,ep:=range episodes{if ep>seen{out=append(out,ep)}};for _,ep:=range episodes{if ep<=seen{out=append(out,ep)}};return out
+}
 
 func browserPlayablePath(path string)bool{switch strings.ToLower(filepath.Ext(path)){case ".mp4",".webm",".m4v",".mov":return true};return false}
 func (s *Server) findLocalSubEpisodeFile(item animeav1.Item,episode int)(string,error){
@@ -87,7 +90,7 @@ func (s *Server) downloadSeriesAPI(w http.ResponseWriter,r *http.Request){
 	if lib,e:=libraryindex.Scan(s.libraryRoot);e==nil{_=s.db.ReplaceLibrary(lib)}
 	if action=="preview"{downloadStates.RLock();live:=downloadStates.m[slug];if live!=nil&&live.Running{cp:=*live;cp.Episodes=append([]downloadEpisodeState(nil),live.Episodes...);downloadStates.RUnlock();w.Header().Set("Content-Type","application/json");_=json.NewEncoder(w).Encode(cp);return};downloadStates.RUnlock();st:=s.previewSeriesDownload(item,episodes);w.Header().Set("Content-Type","application/json");_=json.NewEncoder(w).Encode(st);return}
 	force:=r.FormValue("force_unplayable")=="1";if !force{var bad []int;for _,ep:=range episodes{if p,e:=s.findLocalSubEpisodeFile(item,ep);e==nil&&!browserPlayablePath(p){bad=append(bad,ep)}};if len(bad)>0{w.Header().Set("Content-Type","application/json");w.WriteHeader(http.StatusConflict);_=json.NewEncoder(w).Encode(map[string]any{"requires_confirmation":true,"unplayable_episodes":bad});return}}
-	downloadStates.Lock();if x:=downloadStates.m[slug];x!=nil&&x.Running{downloadStates.Unlock();http.Error(w,"descarga en curso",409);return};st:=&seriesDownloadState{Slug:slug,Running:true,Total:len(episodes),Started:time.Now().Format(time.RFC3339),Episodes:make([]downloadEpisodeState,len(episodes)),ForceUnplayable:force};for i,ep:=range episodes{st.Episodes[i]=downloadEpisodeState{Episode:ep,Status:"pending"}};downloadStates.m[slug]=st;downloadStates.Unlock()
+	ordered:=downloadEpisodeOrder(episodes,item.Seen);downloadStates.Lock();if x:=downloadStates.m[slug];x!=nil&&x.Running{downloadStates.Unlock();http.Error(w,"descarga en curso",409);return};st:=&seriesDownloadState{Slug:slug,Running:true,Total:len(ordered),Started:time.Now().Format(time.RFC3339),Episodes:make([]downloadEpisodeState,len(ordered)),ForceUnplayable:force};for i,ep:=range ordered{st.Episodes[i]=downloadEpisodeState{Episode:ep,Status:"pending"}};downloadStates.m[slug]=st;downloadStates.Unlock()
 	ctx,cancel:=context.WithCancel(context.Background());downloadCancels.Lock();downloadCancels.m[slug]=cancel;downloadCancels.Unlock();s.persistDownloadState(st);go s.runMegaSeries(ctx,item,st);w.Header().Set("Content-Type","application/json");w.WriteHeader(http.StatusAccepted);_=json.NewEncoder(w).Encode(st)
 }
 func (s *Server) cancelSeriesDownload(w http.ResponseWriter,slug string){downloadStates.RLock();st:=downloadStates.m[slug];running:=st!=nil&&st.Running;downloadStates.RUnlock();if !running{http.Error(w,"no hay descarga en curso",409);return};downloadCancels.Lock();cancel:=downloadCancels.m[slug];downloadCancels.Unlock();if cancel!=nil{cancel()};s.setDL(st,func(x *seriesDownloadState){x.Cancelled=true});w.Header().Set("Content-Type","application/json");w.WriteHeader(http.StatusAccepted);_=json.NewEncoder(w).Encode(map[string]bool{"cancelling":true})}
