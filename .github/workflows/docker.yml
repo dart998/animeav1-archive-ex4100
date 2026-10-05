@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  APP_VERSION: 0.6.34
+  APP_VERSION: 0.6.35
   IMAGE_NAME: ovelayos/animeav1-archive-ex4100
 
 jobs:
@@ -34,7 +34,7 @@ jobs:
           cache: false
       - name: Run focused regression tests
         run: |
-          go test ./internal/web -run '^(TestDownloadEpisodeOrderStartsWithUnseen|TestDownloadEpisodeOrderKeepsEpisodeZeroAfterUnseen|TestDownloadEpisodeOrderWhenNothingSeen|TestExactFolderWinsOverFranchiseStem|TestHistoricalMediaIDFallbackStillWorks|TestArchiveVersionBridgePreservesOriginalFansBlock|TestMobilePlayerUsesResponsiveCandidateAndCleanup|TestPlayerActiveSourceUsesOwnVisualState|TestVoeFullscreenOverlayUsesParentFullscreen)$' -count=1
+          go test ./internal/web -run '^(TestLocalPlayerHasJWStyleControls|TestFooterVersionDoesNotMoveHeartAlignment|TestLocalPlayerControlsSurviveLocalRecreation|TestArchiveVersionBridgePreservesOriginalFansBlock|TestMobilePlayerUsesResponsiveCandidateAndCleanup|TestPlayerActiveSourceUsesOwnVisualState|TestVoeFullscreenOverlayUsesParentFullscreen)$' -count=1
           go test ./internal/site -run '^TestAdminNavStaysOutOfMobileNavigation$' -count=1
       - name: Verify release note
         shell: bash
