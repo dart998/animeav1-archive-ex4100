@@ -4,14 +4,12 @@ services:
   animeav1-archive:
     image: ${ARCHIVE_IMAGE:-ovelayos/animeav1-archive-ex4100:0.6.36}
     container_name: ${CONTAINER_NAME:-animeav1-archive}
-    hostname: ${HOSTNAME:-animeav1-archive}
     restart: unless-stopped
-
-    ports:
-      - "${WEB_PORT:-8090}:8080"
+    network_mode: "container:openvpn-proton"
 
     environment:
       TZ: ${TZ:-Europe/Madrid}
+      PORT: "8080"
       ANIMEAV1_BASE_URL: ${ANIMEAV1_BASE_URL:-https://animeav1.com}
       ARCHIVE_DB: /data/db/archive.sqlite
       ARCHIVE_DATA_DIR: /data
